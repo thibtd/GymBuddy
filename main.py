@@ -9,7 +9,7 @@ import numpy as np
 app = FastAPI()
 
 
-html = '''
+html = """
 <!DOCTYPE html>
 <html>
 <head>
@@ -17,6 +17,20 @@ html = '''
     <style>
         body {
             font-family: Arial, sans-serif;
+            margin: 20px;
+        }
+        .container {
+            display: flex;
+            gap: 20px;
+        }
+        .video-column {
+            flex: 2;
+        }
+        .history-column {
+            flex: 1;
+            padding: 20px;
+            background-color: #f5f5f5;
+            border-radius: 5px;
         }
         .controls {
             margin-bottom: 20px;
@@ -33,70 +47,56 @@ html = '''
     </style>
 </head>
 <body>
-    <div class="column">
-        <h1>Video Stream</h1>
-        
-        <div class="controls">
-            <!-- Workout Selection Dropdown -->
-            <label for="workout-select">Workout:</label>
-            <select id="workout-select">
-                <option value="push-ups">Push-ups</option>
-                <option value="abs">Abs</option>
-                <option value="squats">Squats</option>
-            </select>
-            
-            <!-- Reps Number Selector and Go Button -->
-            <label for="reps-select">Reps:</label>
-            <input type="number" id="reps-select" min="1" value="10">
-            <button id="go-button">Go</button>
+    <div class="container">
+        <div class="video-column">
+            <h1>Video Stream</h1>
+            <div class="controls">
+                <label for="workout-select">Workout:</label>
+                <select id="workout-select">
+                    <option value="push-ups">Push-ups</option>
+                    <option value="abs">Abs</option>
+                    <option value="squats">Squats</option>
+                </select>
+                <label for="reps-select">Reps:</label>
+                <input type="number" id="reps-select" min="1" value="10">
+                <button id="go-button">Go</button>
+            </div>
+            <div id="status"></div>
+            <canvas id="videoCanvas" width="720" height="720"></canvas>
         </div>
-        <div id="status"></div>
-
+        <div class="history-column">
+            <h2>Workout History</h2>
+            <div id="history"></div>
         </div>
-        <canvas id="videoCanvas" width="720" height="720"></canvas>
     </div>
-    <div class="column">
-         <div id="status"></div>
-         </div>
-    </div>
-    
     <script>
         const workoutSelect = document.getElementById('workout-select');
         const repsSelect = document.getElementById('reps-select');
         const goButton = document.getElementById('go-button');
         const canvas = document.getElementById('videoCanvas');
         const ctx = canvas.getContext('2d');
+        const historyDiv = document.getElementById('history');
         
         const ws = new WebSocket("ws://127.0.0.1:8000/ws");
         ws.binaryType = "arraybuffer";
         
-        ws.onopen = () => {
-            console.log("WebSocket connected");
-            // Send initial workout selection and reps
-            ws.send(JSON.stringify({ type: 'workout', value: workoutSelect.value }));
-            ws.send(JSON.stringify({ type: 'reps', value: parseInt(repsSelect.value, 10) }));
-        };
-        
         ws.onmessage = (event) => {
             if (typeof event.data === "string") {
-                // Text message received (analysis data)
                 const data = JSON.parse(event.data);
                 if (data.type === 'data') {
-                    // Display the message on the frontend
-                    const statusDiv = document.getElementById('status');
-                    statusDiv.textContent = data.message;
+                    document.getElementById('status').textContent = data.message;
+                } else if (data.type === 'history') {
+                    historyDiv.innerHTML = data.message;
                 }
             } else {
-                // Binary data received (video frame)
                 const imageBlob = new Blob([event.data], { type: "image/jpeg" });
                 const imageURL = URL.createObjectURL(imageBlob);
-
                 const img = new Image();
                 img.onload = () => {
                     canvas.width = img.width;
                     canvas.height = img.height;
                     ctx.drawImage(img, 0, 0);
-                    URL.revokeObjectURL(imageURL); // Free memory
+                    URL.revokeObjectURL(imageURL);
                 };
                 img.src = imageURL;
             }
@@ -130,7 +130,7 @@ html = '''
     </script>
 </body>
 </html>
-'''
+"""
 
 @app.get("/")
 async def get():
@@ -148,8 +148,8 @@ async def camera_feed(websocket: WebSocket):
                         'message': 'Let\'s get strated with your workout' 
                     }
     remaining_reps = np.infty
-    #src = "videos/pushups.MOV"
-    src= 0
+    src = "videos/pushups.MOV"
+    #src= 0
     buddy = GymBuddy(src)
     if not buddy.cap.isOpened():
         print("Error: Could not open the camera.")
@@ -165,6 +165,16 @@ async def camera_feed(websocket: WebSocket):
 
             # TODO: Move all the logic to dedicated functions 
             # Handle incoming messages for workout configuration
+            history_message = ""
+            for i in range(len(wo_names)):
+                history_message += f"{wo_names[i]}: {wo_reps[i]} reps\n"
+            
+            history_data = {
+                'type': 'history',
+                'message': history_message.replace('\n', '<br>')
+            }
+            await websocket.send_text(json.dumps(history_data))
+
             try:
                 message = await asyncio.wait_for(websocket.receive_text(), timeout=0.1)
                 data = json.loads(message)
@@ -189,6 +199,7 @@ async def camera_feed(websocket: WebSocket):
             remaining_reps = buddy.goal_reps - buddy.count_rep
             if start_detection:
                 frame = buddy.detect()
+                print(f'res {buddy.POSE_LANDMARK_RESULT}')
                 analysis_data = {
                 'type': 'data',
                 'message': f"Completed {buddy.count_rep} out of {buddy.goal_reps} {buddy.workout_name}, {remaining_reps} to go!"
@@ -200,6 +211,7 @@ async def camera_feed(websocket: WebSocket):
                     }
                     wo_names.append(buddy.workout_name)
                     wo_reps.append(buddy.count_rep)
+                    buddy.count_rep = 0
                     start_detection =False
 
             else:

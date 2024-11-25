@@ -78,7 +78,6 @@ class GymBuddy:
 
     def print_result(self, result, output_image: mp.Image, timestamp_ms: int) -> None:
         self.POSE_LANDMARK_RESULT = result
-
     def draw_landmarks_on_image(self, rgb_image: np.ndarray) -> np.ndarray:
         pose_landmarks_list = self.POSE_LANDMARK_RESULT.pose_landmarks
         annotated_image = np.copy(rgb_image)
@@ -86,6 +85,7 @@ class GymBuddy:
         # Loop through the detected poses to visualize.
         for idx in range(len(pose_landmarks_list)):
             pose_landmarks = pose_landmarks_list[idx]
+            
 
             # Draw the pose landmarks.
             pose_landmarks_proto = landmark_pb2.NormalizedLandmarkList()
@@ -191,9 +191,6 @@ class GymBuddy:
                         # wo_name, wo_type = detect_workout(POSE_LANDMARK_RESULT.pose_landmarks, left=wo_side)
                         # print(f'name: {self.workout_name}, type: {self.workout_type}')
                     self.count_rep += self.count_workout()
-                    text_with_var = f"{self.count_rep} {self.workout_name} so far!"
-                    # print(text_with_var)
-                    # cv2.putText(annotated_img, text_with_var, (100, 180), cv2.FONT_HERSHEY_SIMPLEX, 3, (255, 0, 0), 10)
                     self.frame_count += 1
                     # cv2.imshow('frame', annotated_img)
                     # print("annotated_img: ",annotated_img)
