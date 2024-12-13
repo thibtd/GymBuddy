@@ -58,7 +58,7 @@ html = """
                     <option value="squats">Squats</option>
                 </select>
                 <label for="reps-select">Reps:</label>
-                <input type="number" id="reps-select" min="1" value="10">
+                <input type="number" id="reps-select" min="1" value="1">
                 <button id="go-button">Go</button>
             </div>
             <div id="status"></div>
@@ -199,7 +199,7 @@ async def camera_feed(websocket: WebSocket):
             remaining_reps = buddy.goal_reps - buddy.count_rep
             if start_detection:
                 frame = buddy.detect()
-                print(f'res {buddy.POSE_LANDMARK_RESULT}')
+                
                 analysis_data = {
                 'type': 'data',
                 'message': f"Completed {buddy.count_rep} out of {buddy.goal_reps} {buddy.workout_name}, {remaining_reps} to go!"

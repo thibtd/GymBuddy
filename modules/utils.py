@@ -1,7 +1,12 @@
 import numpy as np
 
 
-def compute_angle(point1, point2, point3) -> np.ndarray:
+def compute_angle(point1:list, point2:list, point3:list) -> np.ndarray:
+    '''
+    description: takes three 2D points with attributes x and y and computes the angle between the vector point1point2 and point2point3
+    input: point1, point2, point3
+    output: angle in degrees    
+    '''
     vec1 = np.array([point1.x, point1.y]) - np.array([point2.x, point2.y])
     vec2 = np.array([point3.x, point3.y]) - np.array([point2.x, point2.y])
 

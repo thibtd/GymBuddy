@@ -7,6 +7,7 @@ from mediapipe.framework.formats import landmark_pb2
 from modules.utils import compute_angle, is_left_side
 import typing
 from time import sleep
+from modules.workouts.pushups import PushUps
 
 from numpy import ndarray
 
@@ -20,7 +21,7 @@ class GymBuddy:
         source,
         workout_name: str = "Push-ups",
         input_type: str = "Video",
-        model_path: str = "models/pose_landmarker_lite.task",
+        model_path: str = "models/pose_landmarker_full.task",
     ):
         # set up the model
         self.input_type = input_type
@@ -32,7 +33,7 @@ class GymBuddy:
         assert self.cap.isOpened(), "Error: Could not open the camera."
         self.frame_timestamp = 0
         self.frame_count = 0
-
+        
         # set up the workout and static parameters
         self.workout_name = workout_name.lower()
         self.workout_type = self.set_workout_type(self.workout_name)
@@ -40,10 +41,17 @@ class GymBuddy:
 
         # set up the workout counter
         self.left_side = False
-        self.down = False
         self.POSE_LANDMARK_RESULT = None
         self.count_rep = 0
 
+        # set current workout 
+        self.current_workout = self.create_workout(self.workout_name)
+
+
+    def create_workout(self, workout_name: str)->object:
+        workouts = {"push-ups": PushUps}
+        return workouts[workout_name](goal_reps=self.goal_reps, ldmrk_res=self.POSE_LANDMARK_RESULT, left_side=self.left_side)
+    
     def set_workout(self, workout_name: str):
         self.workout_name = workout_name
         print(f"Workout set to: {self.workout_name}")
@@ -78,6 +86,8 @@ class GymBuddy:
 
     def print_result(self, result, output_image: mp.Image, timestamp_ms: int) -> None:
         self.POSE_LANDMARK_RESULT = result
+
+
     def draw_landmarks_on_image(self, rgb_image: np.ndarray) -> np.ndarray:
         pose_landmarks_list = self.POSE_LANDMARK_RESULT.pose_landmarks
         annotated_image = np.copy(rgb_image)
@@ -85,8 +95,7 @@ class GymBuddy:
         # Loop through the detected poses to visualize.
         for idx in range(len(pose_landmarks_list)):
             pose_landmarks = pose_landmarks_list[idx]
-            
-
+        
             # Draw the pose landmarks.
             pose_landmarks_proto = landmark_pb2.NormalizedLandmarkList()
             pose_landmarks_proto.landmark.extend(
@@ -104,48 +113,6 @@ class GymBuddy:
                 solutions.drawing_styles.get_default_pose_landmarks_style(),
             )
         return annotated_image
-
-    def count_workout(self) -> int:
-        angle: ndarray = np.zeros((0, 1))
-        keys = {}
-        res = self.POSE_LANDMARK_RESULT.pose_landmarks
-        count = 0
-        # TODO: Add more restrictions to the specifics of the workout. i.e. hips cannot touch floor in push-ups
-        if self.left_side:
-            if self.workout_type == 0:  # push-ups from the left
-                keys["point1"], keys["point2"], keys["point3"] = 11, 13, 15
-            elif self.workout_type == 1:  # abs from the left
-                keys["point1"], keys["point2"], keys["point3"] = 25, 23, 11
-            else:  # squats from the left
-                keys["point1"], keys["point2"], keys["point3"] = 27, 25, 23
-        else:
-            if self.workout_type == 0:  # push-ups from the right
-                keys["point1"], keys["point2"], keys["point3"] = 12, 14, 16
-            elif self.workout_type == 1:  # abs from the right
-                keys["point1"], keys["point2"], keys["point3"] = 26, 24, 12
-            else:  # squats from the right
-                keys["point1"], keys["point2"], keys["point3"] = 28, 26, 24
-        for idx in range(len(res)):
-            pose_landmarks = res[idx]
-            point1, point2, point3 = (
-                pose_landmarks[keys["point1"]],
-                pose_landmarks[keys["point2"]],
-                pose_landmarks[keys["point3"]],
-            )
-            angle = compute_angle(point1, point2, point3)
-        if angle.size > 0:
-            if angle <= 90:
-                if self.down:
-                    pass
-                else:
-                    self.down = True
-            elif angle >= 120:
-                if not self.down:
-                    pass
-                else:
-                    self.down = False
-                    count = 1
-        return count
 
     def detect(self) -> np.ndarray:
         w, h, fps = (
@@ -166,13 +133,10 @@ class GymBuddy:
                 break
             im0 = cv2.resize(im0, (720, 720))
             mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=im0)
-            # frame_timestamp_ms = int(src.get(cv2.CAP_PROP_POS_MSEC))+1
             self.frame_timestamp += int(
                 1000 / fps
             )  # Increment timestamp by frame duration
-            # print(" ms: ", self.frame_timestamp)
             type_run = self.model._running_mode.name
-            # print("type_run: ", type_run)
             frame = im0
             if type_run == "LIVE_STREAM":
                 self.model.detect_async(mp_image, self.frame_timestamp)
@@ -183,17 +147,17 @@ class GymBuddy:
             if type(self.POSE_LANDMARK_RESULT) is not type(None):
                 annotated_img = self.draw_landmarks_on_image(im0)
                 if len(self.POSE_LANDMARK_RESULT.pose_landmarks) > 0:
+                    res = self.POSE_LANDMARK_RESULT.pose_landmarks
                     if self.frame_count == 0:
-                        self.left_side = is_left_side(
-                            self.POSE_LANDMARK_RESULT.pose_landmarks
-                        )
-                        # print(f'side: { self.left_side}')
-                        # wo_name, wo_type = detect_workout(POSE_LANDMARK_RESULT.pose_landmarks, left=wo_side)
-                        # print(f'name: {self.workout_name}, type: {self.workout_type}')
-                    self.count_rep += self.count_workout()
+                        self.left_side = is_left_side(res)
+                        print(f'left side: {self.left_side}')
+                        self.current_workout.set_res(res)
+                        #TODO:fix form check location
+                        print(f'workout: {self.current_workout.get_form()}')
+                        self.current_workout.form = self.current_workout.get_form()
+                    self.current_workout.set_res(res)
+                    self.count_rep += self.current_workout.count_reps()
                     self.frame_count += 1
-                    # cv2.imshow('frame', annotated_img)
-                    # print("annotated_img: ",annotated_img)
                     frame = annotated_img
 
                 if cv2.waitKey(1) & 0xFF == ord("q"):
