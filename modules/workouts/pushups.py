@@ -1,5 +1,5 @@
 from modules.utils import compute_angle
-from modules.workouts.wourkoutParent import Workout
+from modules.workouts.workoutParent import Workout
 import numpy as np 
 from numpy import ndarray
 
