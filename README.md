@@ -89,17 +89,3 @@ makefile
 
    - Watch your live video stream with real-time annotations.
    - Receive feedback on your form and keep track of your reps.
-
-## 📝 Contributing
-
-Contributions are welcome! Please fork the repository and submit a pull request.
-
-## 📄 License
-
-This project is licensed under the MIT License.
-
-## 🙏 Acknowledgments
-
-- **MediaPipe** for their incredible pose estimation solutions.
-- **FastAPI** for providing an easy and efficient way to build APIs.
-- **OpenCV** community for making computer vision accessible.
