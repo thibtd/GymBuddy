@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>GymBuddy - AI Workout Tracker</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        :root {
+            --primary: #4361ee;
+            --primary-dark: #3a56d4;
+            --secondary: #4cc9f0;
+            --accent: #f72585;
+            --light: #f8f9fa;
+            --dark: #212529;
+            --gray: #6c757d;
+            --success: #38b000;
+            --warning: #ffaa00;
+            --danger: #d00000;
+            --border-radius: 8px;
+            --shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            --transition: all 0.3s ease;
+        }
+        
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Roboto, -apple-system, BlinkMacSystemFont, sans-serif;
+            background-color: #f0f2f5;
+            color: var(--dark);
+            margin: 0;
+            padding: 0;
+            line-height: 1.6;
+        }
+        
+        .app-header {
+            background: linear-gradient(135deg, var(--primary), var(--secondary));
+            color: white;
+            padding: 1.5rem;
+            text-align: center;
+            box-shadow: var(--shadow);
+        }
+        
+        .app-title {
+            font-size: 2.2rem;
+            font-weight: 700;
+            margin: 0;
+        }
+        
+        .app-subtitle {
+            font-size: 1rem;
+            opacity: 0.9;
+            margin-top: 0.5rem;
+        }
+        
+        .container {
+            max-width: 1400px;
+            margin: 1.5rem auto;
+            padding: 0 1.5rem;
+            display: flex;
+            gap: 1.5rem;
+        }
+        
+        .video-column {
+            flex: 2;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .history-column {
+            flex: 1;
+            background-color: white;
+            border-radius: var(--border-radius);
+            box-shadow: var(--shadow);
+            padding: 1.5rem;
+            height: fit-content;
+        }
+        
+        .controls-card {
+            background-color: white;
+            border-radius: var(--border-radius);
+            box-shadow: var(--shadow);
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+        }
+        
+        .controls {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+        }
+        
+        .control-group {
+            display: flex;
+            flex-direction: column;
+            flex: 1;
+            min-width: 120px;
+        }
+        
+        label {
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+            color: var(--gray);
+            font-size: 0.9rem;
+            text-transform: uppercase;
+        }
+        
+        select, input {
+            padding: 0.6rem 0.8rem;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-size: 1rem;
+            background-color: var(--light);
+            transition: var(--transition);
+        }
+        
+        select:focus, input:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(67, 97, 238, 0.25);
+        }
+        
+        button {
+            background-color: var(--primary);
+            color: white;
+            border: none;
+            border-radius: 6px;
+            padding: 0.6rem 1.5rem;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: var(--transition);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+        }
+        
+        button:hover {
+            background-color: var(--primary-dark);
+            transform: translateY(-2px);
+        }
+        
+        button:active {
+            transform: translateY(0);
+        }
+        
+        #videoCanvas {
+            width: 100%;
+            height: auto;
+            border-radius: var(--border-radius);
+            box-shadow: var(--shadow);
+            background-color: #333;
+        }
+        
+        .video-container {
+            position: relative;
+            width: 100%;
+            overflow: hidden;
+            border-radius: var(--border-radius);
+        }
+        
+        #status {
+            padding: 1rem;
+            margin-bottom: 1rem;
+            border-radius: var(--border-radius);
+            background-color: rgba(255, 255, 255, 0.9);
+            font-weight: 600;
+            text-align: center;
+            transition: var(--transition);
+        }
+        
+        .history-column h2 {
+            font-size: 1.5rem;
+            margin-bottom: 1rem;
+            padding-bottom: 0.5rem;
+            border-bottom: 2px solid var(--light);
+        }
+        
+        #history {
+            max-height: 500px;
+            overflow-y: auto;
+        }
+        
+        .workout-entry {
+            background-color: var(--light);
+            padding: 1rem;
+            border-radius: var(--border-radius);
+            margin-bottom: 1rem;
+            transition: var(--transition);
+        }
+        
+        .workout-entry:hover {
+            transform: translateY(-2px);
+            box-shadow: var(--shadow);
+        }
+        
+        @media (max-width: 768px) {
+            .container {
+                flex-direction: column;
+            }
+            
+            .controls {
+                flex-direction: column;
+            }
+        }
+    </style>
+</head>
+<body>
+    <header class="app-header">
+        <h1 class="app-title">GymBuddy</h1>
+        <p class="app-subtitle">Your AI-powered workout assistant</p>
+    </header>
+    
+    <div class="container">
+        <div class="video-column">
+            <div class="controls-card">
+                <div class="controls">
+                    <div class="control-group">
+                        <label for="workout-select">Workout Type</label>
+                        <select id="workout-select">
+                            <option value="push-ups">Push-ups</option>
+                            <option value="abs">Abs</option>
+                            <option value="squats">Squats</option>
+                        </select>
+                    </div>
+                    
+                    <div class="control-group">
+                        <label for="strictness-select">Strictness Level</label>
+                        <select id="strictness-select">
+                            <option value="loose">Loose</option>
+                            <option value="moderate">Moderate</option>
+                            <option value="strict">Strict</option>
+                        </select>
+                    </div>
+                    
+                    <div class="control-group">
+                        <label for="reps-select">Target Reps</label>
+                        <input type="number" id="reps-select" min="1" value="1">
+                    </div>
+                    
+                    <div class="control-group" style="justify-content: flex-end; margin-top: auto;">
+                        <button id="go-button">
+                            <i class="fas fa-play"></i> Start Workout
+                        </button>
+                    </div>
+                </div>
+                <div id="status" style="display: none;"></div>
+            </div>
+            
+            <div class="video-container">
+                <canvas id="videoCanvas" width="1080" height="720"></canvas>
+            </div>
+        </div>
+        
+        <div class="history-column">
+            <h2>Workout History</h2>
+            <div id="history">
+                <!-- Workout history will be populated here -->
+            </div>
+        </div>
+    </div>
+    
+    <script src="/static/app.js"></script>
+    <script>
+        // Show status message when workout starts
+        document.getElementById('go-button').addEventListener('click', function() {
+            const statusEl = document.getElementById('status');
+            statusEl.style.display = 'block';
+            statusEl.style.backgroundColor = 'var(--primary)';
+            statusEl.style.color = 'white';
+            statusEl.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Preparing your workout...';
+            
+            // This timeout is just for UI demonstration, your actual app.js handles this
+            setTimeout(() => {
+                statusEl.style.backgroundColor = 'var(--success)';
+                statusEl.innerHTML = '<i class="fas fa-check-circle"></i> Workout ready! Follow the instructions on screen.';
+            }, 1500);
+        });
+    </script>
+</body>
+</html>

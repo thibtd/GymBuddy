@@ -1,79 +1,118 @@
-from modules.utils import compute_angle
 from modules.workouts.workoutParent import Workout
-import numpy as np 
+import numpy as np
 from numpy import ndarray
+from typing import List, Dict, Any
+
+
 
 class PushUps(Workout):
-    def __init__(self,goal_reps:int,ldmrk_res,left_side:bool):
-        super().__init__(goal_reps,ldmrk_res,left_side)
-        self.shoulder_idx = 11 if self.left_side else 12
-        self.elbow_idx = 13 if self.left_side else 14
-        self.wrist_idx = 15 if self.left_side else 16 
-        self.hip_idx = 23 if self.left_side else 24 
-        self.knee_idx = 25 if self.left_side else 26
-        self.form = None
-        self.fix_form = None
+    """Pushups workout class implementing the Workout interface."""
+    def update_indices(self) -> None:
+        self.shoulder_idx: int = 11 if self.left_side else 12
+        self.elbow_idx: int = 13 if self.left_side else 14
+        self.wrist_idx: int = 15 if self.left_side else 16
+        self.hip_idx: int = 23 if self.left_side else 24
+        self.ankle_idx: int = 27 if self.left_side else 28
+        self.knee_idx: int = 25 if self.left_side else 26
+        self.toes_idx: int = 31 if self.left_side else 32
 
-    def count_reps(self)->int:
-        # handles the logic of when to determine if pu is counted 
+    
+    def __init__(self, goal_reps: int, ldmrk_res, left_side: bool,strictness_crit:str = "loose") -> None:
+        """Pushups workout class."""
+        super().__init__(goal_reps, ldmrk_res, left_side,strictness_crit)
+        
+    
+
+    def count_reps(self) -> int:
+        # handles the logic of when to determine if pu is counted
         angle: ndarray = np.zeros((0, 1))
-        count:int = 0   
-        for idx in range(len(self.ldmrk_res)):
-            pose_landmarks = self.ldmrk_res[idx]
-            wrist, elbow, shoulder,knee, hip = (
-                pose_landmarks[self.wrist_idx],
-                pose_landmarks[self.elbow_idx],
-                pose_landmarks[self.shoulder_idx],
-                pose_landmarks[self.knee_idx],
-                pose_landmarks[self.hip_idx]
-            )
-            angle = compute_angle(wrist,elbow,shoulder)
+        count: int = 0
+        angle = self._compute_and_store_angle('elbow',self.wrist_idx, self.elbow_idx, self.shoulder_idx)
         if self.form:
+            down_threshold: int = 90
+            up_threshold: int = 150
             if angle.size > 0:
-                if angle <= 90:
-                    if self.down:
-                        pass
-                    else:
-                        self.down = True
-                elif angle >= 120:
+
+                if angle <= down_threshold:
                     if not self.down:
-                        pass
-                    else:
+                        self.down = True
+                elif angle >= up_threshold:
+                    if self.down:
                         self.down = False
+                        self.form = None
                         count = 1
-        print('down',self.down)
+        print("down", self.down)
         return count
     
-    def get_form(self)->bool:
-        ''' starting form for pu: 
-            1) shoulders above wrists 
-            2) knees not on floor (y knees > y wrist)
-            3) hips wide open 
-            '''
-        # TODO: add fixes to the position i.e. why is form not correct and display it to the user.
-        #(0,0) is top left of image and (1,1) is bottom right
-        #if form was true in the previous frame, return true
     
-        pose_landmarks = self.ldmrk_res[0]
-        wrist, elbow, shoulder,knee, hip = (
-            pose_landmarks[self.wrist_idx],
-            pose_landmarks[self.elbow_idx],
-            pose_landmarks[self.shoulder_idx],
-            pose_landmarks[self.knee_idx],
-            pose_landmarks[self.hip_idx]
-        )
-        out = False
-        print(f'wrist ({np.round(wrist.x,2),np.round(wrist.y,2)}),shoulder({np.round(shoulder.x,2),np.round(shoulder.y,2)}) \
-              knee({np.round(knee.x,2),np.round(knee.y,2)}),hip({np.round(hip.x,2),np.round(hip.y,2)})')
-        if np.round(wrist.x,1) == np.round(shoulder.x,1):
-            if np.round(knee.y,2)< np.round(wrist.y,2):
-                if compute_angle(shoulder,hip,knee) > 110:
-                    self.fix_form = None
-                    out=  True
-                else:
-                    self.fix_form = "hips not wide open"
-            else:
-                self.fix_form = "knees on floor"
+
+
+
+    def get_form(self) -> bool:
+        """starting form for pu:
+        1) shoulders above wrists
+        2) knees not on floor (y knees > y wrist)
+        3) hips wide open
+        """
+        # get the landmarks
+        wrist= self._get_landmark(self.wrist_idx)
+        shoulder= self._get_landmark(self.shoulder_idx)
+        ankle= self._get_landmark(self.ankle_idx)
+        knee = self._get_landmark(self.knee_idx)
+        toes = self._get_landmark(self.toes_idx)
+
+
+        # compute the angles
+        self._compute_and_store_angle('body', self.shoulder_idx, self.hip_idx, self.ankle_idx)
+        angle_elbow: float = self.angles["elbow"]
+
+        # compute form criteria
+        variation:int = 5
+        goal_all_body:int = 180 
+        deviations:float = self.get_strictness_deviation()
+        elbow_threshold:float = 165
+       
+        #compute the form criterions 
+        body_aligned:bool = (self.angles['body'] > goal_all_body - (deviations + variation) and 
+                             self.angles['body'] < goal_all_body + deviations + variation)
+        shoulders_aligned:bool = ( np.round(wrist.x, 1) == np.round(shoulder.x, 1) or 
+                                  angle_elbow <=160)
+                                  
+        knees_up:bool = np.round(knee.y, 2) < min(np.round(wrist.y, 2),np.round(toes.y, 2))
+        print(f'knees:{np.round(knee.y, 2)}, wrist: {np.round(wrist.y, 2)}, toes: {np.round(toes.y, 2)}')
+
+        #Determine form and fixes
+        form_issues:list = []
+        if not shoulders_aligned:
+            form_issues.append("shoulders not aligned with wrists")
+        if not knees_up:
+            form_issues.append("knees on floor")
+        if not body_aligned:
+            form_issues.append(f"body not straight (angle: {self.angles['body']:.1f} degrees)")
+        
+        # Set form feedback
+
+        if form_issues:
+            self.fix_form = ", ".join(form_issues)
+            return False
+        
         else:
-            self.fix_form = "shoulders not above wrists" 
-        return out
+            self.fix_form = f"Good form! (angle: {self.angles['body']:.1f}degrees)"
+            return True
+        
+    def get_display_angles(self) -> List[Dict[str, Any]]:
+        """Returns data for angles to be displayed (Elbow and Body)."""
+        display_list = []
+        if "elbow" in self.angles:
+            display_list.append({
+                "name": "elbow",
+                "value": self.angles["elbow"],
+                "joint_indices": (self.wrist_idx, self.elbow_idx, self.shoulder_idx)
+            })
+        if "body" in self.angles: 
+             display_list.append({
+                 "name": "body",
+                 "value": self.angles["body"],
+                 "joint_indices": (self.shoulder_idx, self.hip_idx, self.ankle_idx)
+             })
+        return display_list
