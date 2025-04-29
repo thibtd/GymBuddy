@@ -8,6 +8,8 @@ from mediapipe import solutions
 from mediapipe.framework.formats import landmark_pb2
 from modules.utils import is_left_side,draw_angle_arc
 from modules.workouts.pushups import PushUps
+from modules.workouts.squats import Squats
+from typing import Dict, Any
 
 PoseLandmarkerResult = mp.tasks.vision.PoseLandmarkerResult
 
@@ -36,9 +38,8 @@ class GymBuddy:
 
         # set up the workout and static parameters
         self.workout_name = workout_name.lower()
-        self.workout_type = self.set_workout_type(self.workout_name)
         self.goal_reps = 0
-        self.strictness_crit = strictness_crit
+        self.strictness = strictness_crit.lower()
 
         # set up the workout counter
         self.left_side = False
@@ -93,21 +94,26 @@ class GymBuddy:
     
     
     def create_workout(self, workout_name: str) -> object:
-        workouts = {"push-ups": PushUps}
+        workouts = {"push-ups": PushUps, "abs": None, "squats": Squats}
         return workouts[workout_name](
             goal_reps=self.goal_reps,
             ldmrk_res=self.POSE_LANDMARK_RESULT,
             left_side=self.left_side,
-            strictness_crit=self.strictness_crit
+            strictness_crit=self.strictness
         )
 
     def set_workout(self, workout_name: str):
         self.workout_name = workout_name
         print(f"Workout set to: {self.workout_name}")
+        self.current_workout = self.create_workout(self.workout_name)
+        print(f"Current workout: {self.current_workout}")
 
     def set_reps(self, reps: int):
         self.goal_reps = reps
         print(f"Reps set to: {self.goal_reps}")
+
+    def set_strictness(self, strictness: str)->str:
+        self.strictness = strictness.lower()
 
     def create_model(self):
         BaseOptions = mp.tasks.BaseOptions
@@ -130,9 +136,6 @@ class GymBuddy:
         PoseLandmarker = PoseLandmarker.create_from_options(options)
         return PoseLandmarker
 
-    def set_workout_type(self, workout_name: str) -> int:
-        wourkouts = {"push-ups": 0, "abs": 1, "squats": 2}
-        return wourkouts[workout_name]
 
     def print_result(self, result) -> None:
         self.POSE_LANDMARK_RESULT = result
@@ -166,6 +169,9 @@ class GymBuddy:
 
     def detect(self) -> np.ndarray:
         """Processes video frames, performs detection, and returns annotated frame."""
+        print(f'workout name: {self.workout_name}')
+        print(f'current workout: {self.current_workout}')
+        print(f'strictness: {self.strictness}')
         fps =int(self.cap.get(cv2.CAP_PROP_FPS))
         
         #while self.cap.isOpened():
@@ -227,10 +233,9 @@ class GymBuddy:
 
             # Form check
             self.current_workout.form = self.current_workout.get_form()
+            print(f'down: {self.current_workout.down}')
             print(f"form: {self.current_workout.form}")
             print(f"fix form: {self.current_workout.fix_form}")
-            print(f"form: {self.current_workout.form}")
-
 
             
             
@@ -289,3 +294,4 @@ class GymBuddy:
             self.frame_count += 1
 
         return annotated_img
+    

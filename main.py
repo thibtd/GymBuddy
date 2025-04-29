@@ -34,8 +34,10 @@ async def camera_feed(websocket: WebSocket):
     wo_reps = []
     analysis_data = {"type": "data", "message": "Let's get started with your workout"}
     remaining_reps = np.infty
-    src = "videos/puFullBody.MOV"
+    #src = "videos/puFullBody.MOV"
     #src = 'videos/pu_long_multi_cam_knees.MOV'
+    #src = 'videos/squats_thib.MOV'
+    src = 'videos/squats_karo_landscape.MOV'
     #src= 0 
     buddy = GymBuddy(src)
     if not buddy.cap.isOpened():
@@ -67,10 +69,18 @@ async def camera_feed(websocket: WebSocket):
                 data = json.loads(message)
                 if data.get("type") == "workout":
                     workout_name = data.get("value", "push-ups")
+                    print(f"Received workout command, {workout_name}")
+                    start_detection = False
                     buddy.set_workout(workout_name)
                 elif data.get("type") == "reps":
                     reps = int(data.get("value", 10))
                     buddy.set_reps(reps)
+                    start_detection = False
+                elif data.get("type") == "strictness":
+                    print(f"Received strictness command, {data.get('value', 'strict')}")
+                    strictness = data.get("value", "strict")
+                    buddy.set_strictness(strictness)
+                    start_detection = False
                 elif data.get("type") == "start":
                     start_detection = True
                     print("Received start command")
