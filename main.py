@@ -36,8 +36,10 @@ async def camera_feed(websocket: WebSocket):
     remaining_reps = np.infty
     #src = "videos/puFullBody.MOV"
     #src = 'videos/pu_long_multi_cam_knees.MOV'
-    #src = 'videos/squats_thib.MOV'
-    src = 'videos/squats_karo_landscape.MOV'
+    src = 'videos/matis_pu_cul.mp4'
+    #src = 'videos/matis_pu.mov'
+    #src = 'videos/squats_karo_landscape.MOV'
+
     #src= 0 
     buddy = GymBuddy(src)
     if not buddy.cap.isOpened():
@@ -113,6 +115,8 @@ async def camera_feed(websocket: WebSocket):
                     wo_reps.append(buddy.count_rep)
                     buddy.count_rep = 0
                     start_detection = False
+                    # call the function to give feedback
+                    # buddy.give_feedback()
 
             else:
                 ret, frame = buddy.cap.read()

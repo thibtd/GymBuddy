@@ -21,7 +21,7 @@ class PushUps(Workout):
         """Pushups workout class."""
         super().__init__(goal_reps, ldmrk_res, left_side,strictness_crit)
         
-    
+
 
     def count_reps(self) -> int:
         # handles the logic of when to determine if pu is counted
@@ -63,7 +63,7 @@ class PushUps(Workout):
 
 
         # compute the angles
-        self._compute_and_store_angle('body', self.shoulder_idx, self.hip_idx, self.ankle_idx)
+        self._compute_and_store_angle('body', self.shoulder_idx, self.hip_idx, self.knee_idx)
         angle_elbow: float = self.angles["elbow"]
 
         # compute form criteria
@@ -116,3 +116,15 @@ class PushUps(Workout):
                  "joint_indices": (self.shoulder_idx, self.hip_idx, self.ankle_idx)
              })
         return display_list
+
+    def _get_indices(self)-> Dict[str, int]:
+        """Returns the indices of the landmarks used for pushups."""
+        return {
+            "shoulder": self.shoulder_idx,
+            "elbow": self.elbow_idx,
+            "wrist": self.wrist_idx,
+            "hip": self.hip_idx,
+            "ankle": self.ankle_idx,
+            "knee": self.knee_idx,
+            "toes": self.toes_idx
+        }

@@ -17,6 +17,18 @@ lint: ## Lint code with pylint.
 	 --extension-pkg-whitelist=mediapipe \
 	 *.py modules/**/*.py
 
+llm: ## call to ollama to pull the model mentioned by $(MODEL)
+	@echo "starting ollama..."
+	open -a Ollama
+	@echo "Waiting for Ollama to start..."
+	sleep 5
+	@echo "Checking if model $(MODEL) is already pulled..."
+	ollama list | grep $(MODEL) || \
+		( echo "Model $(MODEL) not found, pulling..." && \
+		ollama pull $(MODEL) )
+	@echo "Model $(MODEL) is ready to use."
+
+
 run_test: ## run the app with fatsapi for testing (reloading)
 	uvicorn main:app --reload
 

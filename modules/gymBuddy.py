@@ -9,7 +9,10 @@ from mediapipe.framework.formats import landmark_pb2
 from modules.utils import is_left_side,draw_angle_arc
 from modules.workouts.pushups import PushUps
 from modules.workouts.squats import Squats
+from modules.db_setup import setup_database
 from typing import Dict, Any
+import duckdb
+import json 
 
 PoseLandmarkerResult = mp.tasks.vision.PoseLandmarkerResult
 
@@ -49,21 +52,25 @@ class GymBuddy:
         # set current workout
         self.current_workout = self.create_workout(self.workout_name)
 
+        
         # Set up CSV logging
         self._setup_csv_logging()
 
-    def _setup_csv_logging(self):
+        # Set up DuckDB
+        self._setup_duckdb()
+
+    def _setup_csv_logging(self)-> None:
         """Setup CSV file for logging pose landmarks"""
         # Create logs directory if it doesn't exist
         os.makedirs('logs', exist_ok=True)
         
         # Generate filename with timestamp and workout name
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M")
         self.csv_filename = f"logs/pose_data_{self.workout_name}_{timestamp}.csv"
         
         # Create and write header to CSV file
         with open(self.csv_filename, 'w', newline='') as csvfile:
-            fieldnames = ['frame', 'timestamp']
+            fieldnames = ['frame', 'timestamp','workout_id']
             # Add fields for all 33 landmarks (x, y, z for each)
             for i in range(33):
                 fieldnames.extend([f'landmark{i}_x', f'landmark{i}_y', f'landmark{i}_z'])
@@ -71,16 +78,16 @@ class GymBuddy:
             writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
             writer.writeheader()
     
-    def _save_landmarks_to_csv(self):
+    def _save_landmarks_to_csv(self)-> None:
         """Save current landmarks to CSV file"""
         if self.POSE_LANDMARK_RESULT is None or not self.POSE_LANDMARK_RESULT.pose_landmarks:
             return
         
         with open(self.csv_filename, 'a', newline='') as csvfile:
             writer = csv.writer(csvfile)
-            
+            time = datetime.now()
             # Start with frame number and timestamp
-            row_data = [self.frame_count, self.frame_timestamp]
+            row_data = [self.frame_count,time, self._current_workout_db_id]
             
             # For the first detected pose (assuming there's at least one)
             landmarks = self.POSE_LANDMARK_RESULT.pose_landmarks[0]
@@ -91,6 +98,67 @@ class GymBuddy:
             
             # Write the row
             writer.writerow(row_data)
+
+    def _setup_duckdb(self)-> None:
+        """Setup DuckDB database for the analysed data"""
+        # Create a DuckDB database connection
+        self.conn = duckdb.connect('data/gymBuddy_db.db')
+        #create the tables in the db if they do not exist
+        setup_database(self.conn)
+        
+
+    def _save_data_to_duckdb(self)-> None:
+        """Save frame analysis data to a DuckDB database"""
+        # if 1st frame, create a new workout entry
+        time = datetime.now()
+        if self.frame_count == 0:
+            try:
+                print(f"strict dev: {self.current_workout.get_strictness_deviation()}, strictness: {self.strictness}","workout name:", self.workout_name)
+                self.conn.sql("""
+                    INSERT INTO workout (workout_name, timestamp_start,rep_goal,
+                    strictness_crit,strictness_definition, left_side)
+                    VALUES (?,?,?,?,?,?) """,
+                    params=[self.workout_name,
+                        time,
+                        self.goal_reps,
+                        self.strictness,
+                        self.current_workout.get_strictness_deviation(),
+                        self.left_side])
+                
+                self._current_workout_db_id = self.conn.sql(""" select id from workout where timestamp_start = ? """, params=[time]).fetchone()[0]
+                print(f"New workout entry created with id {self._current_workout_db_id}.")
+            except Exception as e:
+                print(f"Error inserting new workout: {e}")
+                return
+            print(self.conn.sql(""" SELECT * FROM workout """))
+        #retrieve angles data from the current workout
+        angles = self.current_workout.get_display_angles()
+        print(f'angles data: {angles}')
+        for angle in angles:
+            angle['joint_indices'] = list(angle['joint_indices'])
+        angles_json = json.dumps(angles)
+        print(angles_json)
+
+        #retrieve the landmarks of interest from the current workout
+        ldmrks_of_interest = self.current_workout._get_indices()
+        ldmrks_keys = list(ldmrks_of_interest.keys())
+        ldmrks_values = list(ldmrks_of_interest.values())
+
+        self.conn.sql(""" INSERT INTO workout_analysis (workout_id, frame, timestamp, 
+                    rep_count,down, form_issues,angles_data,ldmrks_of_interest)
+                    VALUES (?,?,?,?,?,?,?,MAP(?, ?))""",
+                    params=[self._current_workout_db_id,
+                            self.frame_count,
+                            time,
+                            self.count_rep,
+                            self.current_workout.down,
+                            self.current_workout.fix_form,
+                            angles_json,
+                            ldmrks_keys,
+                            ldmrks_values])
+        
+        print(f"Data saved to DuckDB for frame {self.frame_count}.")
+        print(self.conn.sql(""" SELECT * FROM workout_analysis """))
     
     
     def create_workout(self, workout_name: str) -> object:
@@ -207,8 +275,6 @@ class GymBuddy:
         annotated_img = frame
 
         if self.POSE_LANDMARK_RESULT and self.POSE_LANDMARK_RESULT.pose_landmarks:
-            # Save landmarks to CSV after each frame
-            self._save_landmarks_to_csv()
 
             annotated_img = self.draw_landmarks_on_image(annotated_img)
 
@@ -236,9 +302,6 @@ class GymBuddy:
             print(f'down: {self.current_workout.down}')
             print(f"form: {self.current_workout.form}")
             print(f"fix form: {self.current_workout.fix_form}")
-
-            
-            
 
 
             # display form status
@@ -288,10 +351,20 @@ class GymBuddy:
                 visualized_mask_colored[bool_mask], alpha,
                 0
             )
+            print(f"frame: {self.frame_count}, timestamp: {self.frame_timestamp}, rep count: {self.count_rep}, goal reps: {self.goal_reps}")
+            
+            
+            # save analysed data to duckdb 
+            self._save_data_to_duckdb()
+            # Save landmarks to CSV after each frame
+            self._save_landmarks_to_csv()
 
-
-            #inctrement frame count
+            #increment frame count
             self.frame_count += 1
 
         return annotated_img
     
+    def give_feedback(self):
+        """ call to an Agent that will give feedback on the series that was done"""
+        pass
+        

@@ -12,7 +12,7 @@ class Workout:
         self.down:bool = False
         self.form:bool = None
         self.fix_form:str = "Checking form..."
-        self.angles :Dict[str, float]={}
+        self.angles:Dict[str, float]={}
 
         self.update_indices()
 
@@ -71,3 +71,10 @@ class Workout:
         else:
             self.angles[name] = 0.0 # Default if landmarks missing
             return 0.0
+    
+    def _get_indices(self) -> Dict[str, int]:
+        """
+        Returns the indices of the landmarks used for the workout.
+        This is a placeholder and should be overridden in child classes.
+        """
+        pass
