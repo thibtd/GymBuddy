@@ -1,8 +1,18 @@
 import numpy as np
 import math 
 import cv2
+from pydantic import BaseModel
 
-def compute_angle(point1: list, point2: list, point3: list) -> np.ndarray:
+class Landmark(BaseModel):
+    x: float
+    y: float
+    visibility: float = 1.0
+    
+    class Config:
+        arbitrary_types_allowed = True
+
+
+def compute_angle(point1: Landmark, point2: Landmark, point3: Landmark) -> float:
     """
     description: takes three 2D points with attributes x and y and computes the angle between the vector point1point2 and point2point3
     input: point1, point2, point3
@@ -33,8 +43,8 @@ def compute_angle(point1: list, point2: list, point3: list) -> np.ndarray:
 def is_left_side(res: list) -> bool:
     for idx in range(len(res)):
         pose_landmarks = res[idx]
-        left_elbow = pose_landmarks[13]
-        right_elbow = pose_landmarks[14]
+        left_elbow = Landmark(x=pose_landmarks[13].x, y=pose_landmarks[13].y, visibility=pose_landmarks[13].visibility)
+        right_elbow = Landmark(x=pose_landmarks[14].x, y=pose_landmarks[14].y, visibility=pose_landmarks[14].visibility)
         if left_elbow.visibility > right_elbow.visibility:
             print("left", left_elbow)
             print("right", right_elbow)
@@ -43,9 +53,10 @@ def is_left_side(res: list) -> bool:
             print("left", left_elbow)
             print("right", right_elbow)
             return False
+    return False
 
 
-def draw_angle_arc(image, pt1:list, pt2:list, pt3:list, angle_degrees:float, color:list, thickness:int=2, radius_factor:float=0.15)-> None:
+def draw_angle_arc(image, point1:list, point2:list, point3:list, angle_degrees:float, color:tuple, thickness:int=2, radius_factor:float=0.15)-> None:
     """
     Draws an arc representing the angle between three points on the image.
 
@@ -60,9 +71,9 @@ def draw_angle_arc(image, pt1:list, pt2:list, pt3:list, angle_degrees:float, col
         radius_factor: Determines the arc radius relative to the shorter limb length.
     """
     # Convert points to numpy arrays for vector operations
-    pt1 = np.array(pt1)
-    pt2 = np.array(pt2) # Joint
-    pt3 = np.array(pt3)
+    pt1:np.ndarray = np.array(point1)
+    pt2:np.ndarray = np.array(point2) # Joint
+    pt3:np.ndarray = np.array(point3)
 
     # Calculate vectors from the joint
     v21 = pt1 - pt2

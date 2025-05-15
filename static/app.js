@@ -7,6 +7,7 @@ const ctx = canvas.getContext('2d');
 const historyDiv = document.getElementById('history');
 const statusEl = document.getElementById('status');
 
+
 // Audio objects for sound effects
 const repSound = new Audio();
 const victorySound = new Audio();
@@ -20,6 +21,7 @@ let previousStatus = null;
 // Track the previous rep count to detect when a new rep is completed
 let previousRepCount = 0;
 
+
 // Connect to WebSocket
 const ws = new WebSocket(`ws://${window.location.host}/ws`);
 ws.binaryType = "arraybuffer";
@@ -29,8 +31,10 @@ ws.onmessage = (event) => {
     if (typeof event.data === "string") {
         const data = JSON.parse(event.data);
         if (data.type === 'data') {
+            console.log('Data received:');
             updateStatus(data.message, data.status);
         } else if (data.type === 'history') {
+            console.log('History update received:');
             updateHistory(data.message);
         }
     } else {
@@ -279,6 +283,9 @@ function updateHistory(rawHistoryHtml) {
     }
 }
 
+
+        
+
 ws.onclose = () => {
     console.log("WebSocket disconnected");
     updateStatus("Connection lost. Please refresh the page.");
@@ -333,6 +340,7 @@ function initUI() {
         }
     `;
     document.head.appendChild(style);
+    
     
     // Create workout counter (hidden) and pose indicator elements if they don't exist
     const videoContainer = document.querySelector('.video-container');
@@ -423,6 +431,7 @@ goButton.addEventListener('click', () => {
     
     // Update status
     updateStatus("Initializing workout session...");
+    
     
     // Send reps value
     ws.send(JSON.stringify({ type: 'reps', value: selectedReps }));

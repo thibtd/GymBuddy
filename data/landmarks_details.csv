@@ -1,0 +1,34 @@
+index,side,name
+0 , ,nose
+1 , left, inner eye
+2 , left, eye
+3 , left, outer eye 
+4 , right, inner eye
+5 , right, eye
+6 , right, outer eye
+7 , left, ear
+8 , right, ear
+9 , left,mouth
+10 , right,mouth
+11 , left,shoulder
+12 , right, shoulder
+13 , left, elbow
+14 , right, elbow
+15 , left, wrist
+16 , right, wrist
+17 , left, pinky
+18 , right, pinky
+19 , left, index
+20 , right, index
+21 , left, thumb
+22 , right, thumb
+23 , left, hip
+24 , right, hip
+25 , left, knee
+26 , right, knee
+27 , left, ankle
+28 , right, ankle
+29 , left, heel
+30 , right, heel
+31 , left, foot index
+32 , right, foot index

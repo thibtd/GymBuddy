@@ -4,7 +4,6 @@ from numpy import ndarray
 from typing import List, Dict, Any
 
 
-
 class PushUps(Workout):
     """Pushups workout class implementing the Workout interface."""
     def update_indices(self) -> None:
@@ -25,22 +24,20 @@ class PushUps(Workout):
 
     def count_reps(self) -> int:
         # handles the logic of when to determine if pu is counted
-        angle: ndarray = np.zeros((0, 1))
         count: int = 0
-        angle = self._compute_and_store_angle('elbow',self.wrist_idx, self.elbow_idx, self.shoulder_idx)
+        angle:float = self._compute_and_store_angle('elbow',self.wrist_idx, self.elbow_idx, self.shoulder_idx)
         if self.form:
             down_threshold: int = 90
             up_threshold: int = 150
-            if angle.size > 0:
 
-                if angle <= down_threshold:
-                    if not self.down:
-                        self.down = True
-                elif angle >= up_threshold:
-                    if self.down:
-                        self.down = False
-                        self.form = None
-                        count = 1
+            if angle <= down_threshold:
+                if not self.down:
+                    self.down = True
+            elif angle >= up_threshold:
+                if self.down:
+                    self.down = False
+                    self.form = False
+                    count = 1
         print("down", self.down)
         return count
     

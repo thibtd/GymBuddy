@@ -13,6 +13,8 @@ from modules.db_setup import setup_database
 from typing import Dict, Any
 import duckdb
 import json 
+from modules.workouts.workoutParent import Workout 
+from modules.feedbackAgent import FeedbackAgent
 
 PoseLandmarkerResult = mp.tasks.vision.PoseLandmarkerResult
 
@@ -29,35 +31,40 @@ class GymBuddy:
 
     ):
         # set up the model
-        self.input_type = input_type
-        self.model_path = model_path
+        self.input_type:str = input_type
+        self.model_path:str = model_path
         self.model = self.create_model()
 
         # set up the camera
         self.cap = cv2.VideoCapture(source)
         assert self.cap.isOpened(), "Error: Could not open the camera."
-        self.frame_timestamp = 0
-        self.frame_count = 0
+        self.frame_timestamp:float = 0
+        self.frame_count:int = 0
 
         # set up the workout and static parameters
-        self.workout_name = workout_name.lower()
-        self.goal_reps = 0
-        self.strictness = strictness_crit.lower()
+        self.workout_name:str = workout_name.lower()
+        self.goal_reps:int = 0
+        self.strictness:str = strictness_crit.lower()
 
         # set up the workout counter
-        self.left_side = False
+        self.left_side:bool = False
         self.POSE_LANDMARK_RESULT = None
-        self.count_rep = 0
+        self.count_rep:int = 0
 
         # set current workout
-        self.current_workout = self.create_workout(self.workout_name)
+        self.current_workout:Workout = self.create_workout(self.workout_name)
 
-        
+        #set time for start of workout
+        self.time:datetime = datetime.now()
+
         # Set up CSV logging
         self._setup_csv_logging()
 
         # Set up DuckDB
         self._setup_duckdb()
+
+        self.feedback_agent:FeedbackAgent = FeedbackAgent(self.conn) 
+
 
     def _setup_csv_logging(self)-> None:
         """Setup CSV file for logging pose landmarks"""
@@ -65,7 +72,7 @@ class GymBuddy:
         os.makedirs('logs', exist_ok=True)
         
         # Generate filename with timestamp and workout name
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M")
+        timestamp = self.time.strftime("%Y%m%d_%H%M")
         self.csv_filename = f"logs/pose_data_{self.workout_name}_{timestamp}.csv"
         
         # Create and write header to CSV file
@@ -105,7 +112,10 @@ class GymBuddy:
         self.conn = duckdb.connect('data/gymBuddy_db.db')
         #create the tables in the db if they do not exist
         setup_database(self.conn)
-        
+
+    def _close_duckdb(self)->None:
+        """close the connection to the DuckDB database"""
+        self.conn.close() 
 
     def _save_data_to_duckdb(self)-> None:
         """Save frame analysis data to a DuckDB database"""
@@ -119,14 +129,18 @@ class GymBuddy:
                     strictness_crit,strictness_definition, left_side)
                     VALUES (?,?,?,?,?,?) """,
                     params=[self.workout_name,
-                        time,
+                        self.time,
                         self.goal_reps,
                         self.strictness,
                         self.current_workout.get_strictness_deviation(),
                         self.left_side])
-                
-                self._current_workout_db_id = self.conn.sql(""" select id from workout where timestamp_start = ? """, params=[time]).fetchone()[0]
-                print(f"New workout entry created with id {self._current_workout_db_id}.")
+                results = self.conn.sql(""" select id from workout where timestamp_start = ? """, params=[self.time]).fetchone()
+                if results is not None:
+                    self._current_workout_db_id:int = results[0]
+                    print(f"New workout entry created with id {self._current_workout_db_id}.")
+                else:
+                    print("Error: No results found for the current workout.")
+                    return 
             except Exception as e:
                 print(f"Error inserting new workout: {e}")
                 return
@@ -158,10 +172,10 @@ class GymBuddy:
                             ldmrks_values])
         
         print(f"Data saved to DuckDB for frame {self.frame_count}.")
-        print(self.conn.sql(""" SELECT * FROM workout_analysis """))
+        #print(self.conn.sql(""" SELECT * FROM workout_analysis """))
     
     
-    def create_workout(self, workout_name: str) -> object:
+    def create_workout(self, workout_name: str) -> Workout:
         workouts = {"push-ups": PushUps, "abs": None, "squats": Squats}
         return workouts[workout_name](
             goal_reps=self.goal_reps,
@@ -180,7 +194,7 @@ class GymBuddy:
         self.goal_reps = reps
         print(f"Reps set to: {self.goal_reps}")
 
-    def set_strictness(self, strictness: str)->str:
+    def set_strictness(self, strictness: str)->None:
         self.strictness = strictness.lower()
 
     def create_model(self):
@@ -209,6 +223,12 @@ class GymBuddy:
         self.POSE_LANDMARK_RESULT = result
 
     def draw_landmarks_on_image(self, rgb_image: np.ndarray) -> np.ndarray:
+        annotated_image = np.copy(rgb_image)
+        if (self.POSE_LANDMARK_RESULT is None or 
+            not hasattr(self.POSE_LANDMARK_RESULT, 'pose_landmarks') or 
+            not self.POSE_LANDMARK_RESULT.pose_landmarks):
+            return annotated_image 
+        
         pose_landmarks_list = self.POSE_LANDMARK_RESULT.pose_landmarks
         annotated_image = np.copy(rgb_image)
 
@@ -251,7 +271,7 @@ class GymBuddy:
             )
             if self.input_type.lower() != "live":
                 self.cap.release() # Release video file
-            return None
+            return np.array([None, None])
 
         frame = im0.copy()
         height, width, _ = frame.shape
@@ -331,7 +351,7 @@ class GymBuddy:
                     pt3_coords = landmarks_pixels[indices[2]]
                     print(f"pt1: {pt1_coords}, pt2: {pt2_coords}, pt3: {pt3_coords}")
                     # Draw the arc
-                    arc_color = (255, 255, 0) # Cyan
+                    arc_color:tuple = (255, 255, 0) # Cyan
                     draw_angle_arc(annotated_img, pt1_coords, pt2_coords, pt3_coords, value, arc_color, 2)
                 except IndexError:
                     print(f"Warning: Landmark index out of bounds for drawing angle '{name}'.")
@@ -366,5 +386,7 @@ class GymBuddy:
     
     def give_feedback(self):
         """ call to an Agent that will give feedback on the series that was done"""
+        feedback:dict = self.feedback_agent.agent_pipeline()
+        return feedback['formatted_feedback']
         pass
         

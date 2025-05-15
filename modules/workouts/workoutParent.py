@@ -1,5 +1,6 @@
 from abc import ABC, abstractmethod
 from typing import List, Dict, Tuple, Any
+from modules.utils import Landmark
 class Workout:
     """ Base class for all workout types."""
     def __init__(self, goal_reps: int, ldmrk_res, left_side: bool,strictness_crit:str = "loose"):
@@ -10,7 +11,7 @@ class Workout:
         self.left_side:bool = left_side
         self.strictness_crit:str =  strictness_crit
         self.down:bool = False
-        self.form:bool = None
+        self.form:bool = False
         self.fix_form:str = "Checking form..."
         self.angles:Dict[str, float]={}
 
@@ -51,17 +52,19 @@ class Workout:
         """
         pass
 
-    def _get_landmark(self, index: int):
+    def _get_landmark(self, index: int)->Landmark:
         """Helper to safely get a landmark from the results."""
         if self.ldmrk_res and len(self.ldmrk_res) > 0 and len(self.ldmrk_res[0]) > index:
-            return self.ldmrk_res[0][index]
+            return Landmark(x=self.ldmrk_res[0][index].x,
+                            y=self.ldmrk_res[0][index].y,
+                            visibility=self.ldmrk_res[0][index].visibility)
         raise ValueError(f"Landmark index {index} out of range for the current results.")
 
     def _compute_and_store_angle(self, name: str, idx1: int, idx2: int, idx3: int) -> float:
         """Helper to compute angle between three landmarks and store it."""
-        pt1 = self._get_landmark(idx1)
-        pt2 = self._get_landmark(idx2)
-        pt3 = self._get_landmark(idx3)
+        pt1:Landmark = self._get_landmark(idx1)
+        pt2:Landmark = self._get_landmark(idx2)
+        pt3:Landmark = self._get_landmark(idx3)
 
         if pt1 and pt2 and pt3:
             from modules.utils import compute_angle
@@ -72,6 +75,7 @@ class Workout:
             self.angles[name] = 0.0 # Default if landmarks missing
             return 0.0
     
+    @abstractmethod
     def _get_indices(self) -> Dict[str, int]:
         """
         Returns the indices of the landmarks used for the workout.

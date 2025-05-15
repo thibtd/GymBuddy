@@ -6,7 +6,7 @@ import numpy as np
 from scipy import signal 
 from datetime import datetime
 import subprocess
-from typing import Dict, Any
+from typing import Dict, Any, List, Optional, Union, cast
 
 
 class FeedbackAgent:
@@ -61,18 +61,34 @@ class FeedbackAgent:
         self.workout_analysis = self.workout_analysis.loc[self.workout_analysis['workout_id'] == last_workout_id]
 
         # load landmarks logs, i.e. the tracking data
-        time_start = pd.Timestamp(self.workout_metadata.loc[self.workout_metadata['ID'] == last_workout_id, 'timestamp_start'].values[0]).strftime('%Y%m%d_%H%M')
-        #print("Last workout time: ", time_start)
-        workout_name = self.workout_metadata.loc[self.workout_metadata['ID'] == last_workout_id, 'workout_name'].values[0]
-        #print("Last workout name: ", workout_name)
-        landmarks_file = f"{self.landmarks_folder}pose_data_{workout_name}_{time_start}.csv"
-        #print(f"Landmarks file: {landmarks_file}")
-        try:
-            self.landmarks = pd.read_csv(landmarks_file)
-            print(f"Landmarks data loaded from {landmarks_file}.")
-        except FileNotFoundError:
-            print(f"Landmarks file {landmarks_file} not found.")
-            self.landmarks = None
+        if not self.workout_metadata.empty and 'ID' in self.workout_metadata.columns:
+            last_workout_id = self.workout_metadata['ID'].max()
+            filtered_workout = self.workout_metadata[self.workout_metadata['ID'] == last_workout_id]
+            
+            if not filtered_workout.empty and 'timestamp_start' in filtered_workout.columns:
+                timestamp_value = filtered_workout['timestamp_start'].iloc[0]
+                time_start = pd.Timestamp(timestamp_value).strftime('%Y%m%d_%H%M')
+                
+                if 'workout_name' in filtered_workout.columns:
+                    workout_name = filtered_workout['workout_name'].iloc[0]
+                    landmarks_file = f"{self.landmarks_folder}pose_data_{workout_name}_{time_start}.csv"
+                    
+                    try:
+                        self.landmarks = pd.read_csv(landmarks_file)
+                        print(f"Landmarks data loaded from {landmarks_file}.")
+                    except FileNotFoundError:
+                        print(f"Landmarks file {landmarks_file} not found.")
+                        # Create empty DataFrame instead of None to maintain type consistency
+                        self.landmarks = pd.DataFrame()
+                else:
+                    print("Missing workout name in data.")
+                    self.landmarks = pd.DataFrame()
+            else:
+                print("No timestamp data available.")
+                self.landmarks = pd.DataFrame()
+        else:
+            print("No workout data available.")
+            self.landmarks = pd.DataFrame()
     
         
 
@@ -81,41 +97,89 @@ class FeedbackAgent:
     def extract_workout_data(self)->Dict[str, Any]:
         """Extract detailed metrics from the combined data"""
 
-        #time variables
-        start_time:datetime = pd.to_datetime(self.workout_analysis['timestamp'].iloc[0])
-        end_time:datetime = pd.to_datetime(self.workout_analysis['timestamp'].iloc[-1])
-        total_time:float = (end_time - start_time).total_seconds()
+        # Check if we have workout data
+        if self.workout_metadata.empty or self.workout_analysis.empty:
+            raise ValueError("No workout data available. Please load workout data first.")
+
+        # Time variables
+        if not self.workout_analysis.empty and 'timestamp' in self.workout_analysis.columns:
+            start_time = pd.to_datetime(self.workout_analysis['timestamp'].iloc[0])
+            end_time = pd.to_datetime(self.workout_analysis['timestamp'].iloc[-1])
+            total_time = (end_time - start_time).total_seconds()
+        else:
+            total_time = 0
+
+        # Get reps completed safely
+        reps_completed = 0
+        if not self.workout_analysis.empty and 'rep_count' in self.workout_analysis.columns:
+            reps_completed = int(self.workout_analysis['rep_count'].max())
+
+        # Get rep goal safely
+        rep_goal = "Unknown"
+        if not self.workout_metadata.empty and 'rep_goal' in self.workout_metadata.columns:
+            rep_goal = self.workout_metadata['rep_goal'].iloc[0]
+            
+        # Get strictness criteria safely
+        strictness_crit = "Unknown"
+        if not self.workout_metadata.empty and 'strictness_crit' in self.workout_metadata.columns:
+            strictness_crit = self.workout_metadata['strictness_crit'].iloc[0]
+            
+        # Get strictness definition safely
+        strictness_definition = "Unknown"
+        if not self.workout_metadata.empty and 'strictness_definition' in self.workout_metadata.columns:
+            strictness_definition = self.workout_metadata['strictness_definition'].iloc[0]
+            
+        # Get landmarks of interest safely
+        ldmrks_interest = []
+        if not self.workout_analysis.empty and 'ldmrks_of_interest' in self.workout_analysis.columns:
+            ldmrks_raw = self.workout_analysis['ldmrks_of_interest'].iloc[0]
+            if ldmrks_raw is not None:
+                if isinstance(ldmrks_raw, list):
+                    ldmrks_interest = ldmrks_raw
+                elif isinstance(ldmrks_raw, str):
+                    try:
+                        ldmrks_interest = json.loads(ldmrks_raw)
+                    except json.JSONDecodeError:
+                        ldmrks_interest = [ldmrks_raw]
+                        
+        # Get side shown safely
+        side_shown = 'unknown'
+        if not self.workout_metadata.empty and 'left_side' in self.workout_metadata.columns:
+            side_shown = 'left' if self.workout_metadata['left_side'].iloc[0] else 'right'
 
         # Basic metrics
-        metrics:dict[str,Any] = {
-            'workout_name': self.workout_metadata['workout_name'],
-            'timestamp': self.workout_metadata['timestamp_start'],
+        metrics = {
+            'workout_name': self.workout_metadata['workout_name'].iloc[0] if not self.workout_metadata.empty and 'workout_name' in self.workout_metadata.columns else "Unknown",
+            'timestamp': self.workout_metadata['timestamp_start'].iloc[0] if not self.workout_metadata.empty and 'timestamp_start' in self.workout_metadata.columns else "Unknown",
             'total_frames': len(self.workout_analysis),
-            'duration_seconds': int(np.round(total_time,0)),
-            'reps_completed': self.workout_analysis['rep_count'].max() if not self.workout_analysis.empty else 0,
-            'reps_goal': self.workout_metadata['rep_goal'] if 'rep_goal' in self.workout_metadata else "Unknown",
-            'strictness_crit': self.workout_metadata['strictness_crit'] if 'strictness_crit' in self.workout_metadata else "Unknown",
-            'strictness_definition' : self.workout_metadata['strictness_definition'] if 'strictness_definition' in self.workout_metadata else 'Unknown',
-            'ldmrks_interest': self.workout_analysis['ldmrks_of_interest'].iloc[0] if 'ldmrks_of_interest' in self.workout_analysis.columns else [],
-            'side_shown': 'left' if self.workout_metadata['left_side'].iloc[0] else 'right',
+            'duration_seconds': int(np.round(total_time, 0)),
+            'reps_completed': reps_completed,
+            'reps_goal': rep_goal,
+            'strictness_crit': strictness_crit,
+            'strictness_definition': strictness_definition,
+            'ldmrks_interest': ldmrks_interest,
+            'side_shown': side_shown,
         }
         # Extract angle data
-        angle_data:pd.DataFrame = pd.DataFrame()
+        angle_data: pd.DataFrame = pd.DataFrame()
         for idx, row in self.workout_analysis.iterrows():
             # Parse angles from JSON if it's stored that way
             try:
-                angles = list(row['angles_data'])
+                if 'angles_data' not in row or row['angles_data'] is None:
+                    continue
+                    
+                angles = row['angles_data']
                 if isinstance(angles, str):
                     angles = json.loads(angles)
-                    
                     
                 # Handle both array of objects and dictionary formats
                 if isinstance(angles, list):
                     for angle_obj in angles:
-                        angle_data.loc[idx, angle_obj['name']] = angle_obj['value']
+                        if isinstance(angle_obj, dict) and 'name' in angle_obj and 'value' in angle_obj:
+                            angle_data.at[idx, angle_obj['name']] = angle_obj['value']
                 elif isinstance(angles, dict):
                     for angle_name, value in angles.items():
-                        angle_data.loc[idx, angle_name] = value
+                        angle_data.at[idx, angle_name] = value
             except (AttributeError, KeyError, json.JSONDecodeError, TypeError) as e:
                 print(f"Error processing angles for frame {idx}: {e}")
         # Calculate detailed angle statistics
@@ -151,46 +215,49 @@ class FeedbackAgent:
             for i in range(33):  # Assuming 33 landmarks
                 try:
                     # Find landmark name in reference dataframe
-                    if i in self.landmarks_details['index'].values:
-                        landmark_name = self.landmarks_details.loc[self.landmarks_details['index'] == i, 'name'].values[0]
-                        
-                        # Check if the columns exist before calculating ranges
-                        x_col = f'landmark{i}_x'
-                        y_col = f'landmark{i}_y'
-                        z_col = f'landmark{i}_z'
-                        
-                        # Only calculate if columns exist
-                        if x_col in self.landmarks.columns and y_col in self.landmarks.columns and z_col in self.landmarks.columns:
-                            x_range = self.landmarks[x_col].max() - self.landmarks[x_col].min()
-                            y_range = self.landmarks[y_col].max() - self.landmarks[y_col].min()
-                            z_range = self.landmarks[z_col].max() - self.landmarks[z_col].min()
+                    if not self.landmarks_details.empty and 'index' in self.landmarks_details.columns and i in self.landmarks_details['index'].values:
+                        landmark_idx_rows = self.landmarks_details[self.landmarks_details['index'] == i]
+                        if not landmark_idx_rows.empty and 'name' in landmark_idx_rows.columns:
+                            landmark_name = landmark_idx_rows['name'].iloc[0]
                             
-                            landmark_metrics[landmark_name] = {
-                                'x_range': x_range,
-                                'y_range': y_range,
-                                'z_range': z_range,
-                                'total_movement': (x_range**2 + y_range**2 + z_range**2)**0.5
-                            }
+                            # Check if the columns exist before calculating ranges
+                            x_col = f'landmark{i}_x'
+                            y_col = f'landmark{i}_y'
+                            z_col = f'landmark{i}_z'
+                            
+                            # Only calculate if columns exist
+                            if all(col in self.landmarks.columns for col in [x_col, y_col, z_col]):
+                                x_range = self.landmarks[x_col].max() - self.landmarks[x_col].min()
+                                y_range = self.landmarks[y_col].max() - self.landmarks[y_col].min()
+                                z_range = self.landmarks[z_col].max() - self.landmarks[z_col].min()
+                                
+                                landmark_metrics[landmark_name] = {
+                                    'x_range': x_range,
+                                    'y_range': y_range,
+                                    'z_range': z_range,
+                                    'total_movement': (x_range**2 + y_range**2 + z_range**2)**0.5
+                                }
                 except (KeyError, IndexError) as e:
                     print(f"Error processing landmark {i}: {e}")
         
         # Detect repetition consistency
         rep_consistency = {'note': 'Not enough data to calculate repetition consistency'}
-        if len(angle_data) > 0 and 'elbow' in angle_data.columns:
+        if not angle_data.empty and 'elbow' in angle_data.columns:
             # Use elbow angle to detect repetition consistency
-            elbow_angles = angle_data['elbow']
-            
-            # Find local minima (bottom of push-up)
             try:
-                bottom_indices, _ = signal.find_peaks(-elbow_angles, distance=15)  # Adjust distance based on your data
-                bottom_angles = elbow_angles.iloc[bottom_indices]
+                elbow_angles = angle_data['elbow']
                 
-                if len(bottom_angles) > 0:
-                    rep_consistency = {
-                        'bottom_angles_mean': bottom_angles.mean(),
-                        'bottom_angles_std': bottom_angles.std(),
-                        'rep_regularity': bottom_angles.std() / bottom_angles.mean() if bottom_angles.mean() != 0 else None
-                    }
+                # Find local minima (bottom of push-up)
+                bottom_indices, _ = signal.find_peaks(-elbow_angles, distance=15)  # Adjust distance based on your data
+                if len(bottom_indices) > 0:
+                    bottom_angles = elbow_angles.iloc[bottom_indices]
+                    
+                    if len(bottom_angles) > 0:
+                        rep_consistency = {
+                            'bottom_angles_mean': bottom_angles.mean(),
+                            'bottom_angles_std': bottom_angles.std(),
+                            'rep_regularity': bottom_angles.std() / bottom_angles.mean() if bottom_angles.mean() != 0 else None
+                        }
             except Exception as e:
                 print(f"Error calculating repetition consistency: {e}")
         
@@ -206,22 +273,37 @@ class FeedbackAgent:
             'angle_data': angle_data  # Include processed angle data
         }
 
-    def generate_feedback(self, metrics:Dict[str, Any])->Dict[str, Any]:
+    def generate_feedback(self, metrics: Dict[str, Any]) -> Dict[str, Any]:
         """Generate feedback based on the extracted workout data"""
         """Use an LLM to generate detailed feedback on the workout performance"""
     
+        # Check if we have the necessary metrics
+        if not metrics or 'basic' not in metrics:
+            raise ValueError("Invalid metrics data provided")
+            
+        # Access basic metrics safely
+        basic_metrics = metrics.get('basic', {})
+        workout_name = basic_metrics.get('workout_name', 'Unknown workout')
+        reps_completed = basic_metrics.get('reps_completed', 0)
+        reps_goal = basic_metrics.get('reps_goal', 'Unknown')
+        duration_seconds = basic_metrics.get('duration_seconds', 0)
+        strictness_crit = basic_metrics.get('strictness_crit', 'Unknown')
+        strictness_definition = basic_metrics.get('strictness_definition', 'Unknown')
+        side_shown = basic_metrics.get('side_shown', 'Unknown')
+        ldmrks_interest = basic_metrics.get('ldmrks_interest', [])
+        
         # Create a prompt for the LLM based on metrics
         prompt = f"""
-        Analyze this {metrics['basic']['workout_name']} workout performance and provide concise feedback.
+        Analyze this {workout_name} workout performance and provide concise feedback.
         
         WORKOUT DATA:
-        - Completed {metrics['basic']['reps_completed']} out of {metrics['basic']['reps_goal']} repetitions
-        - Workout strictness: {metrics['basic']['strictness_crit']} with a leeway of {metrics['basic']['strictness_definition']} degrees deviation from a flat (180 degree) body angle
+        - Completed {reps_completed} out of {reps_goal} repetitions
+        - Workout strictness: {strictness_crit} with a leeway of {strictness_definition} degrees deviation from a flat (180 degree) body angle
         to be considered good.
-        - Workout duration: {metrics['basic']['duration_seconds']} seconds
+        - Workout duration: {duration_seconds} seconds
 
         BODY SIDE SHOWN: 
-        {metrics['basic']['side_shown']}
+        {side_shown}
         
         FORM ISSUES:
         {chr(10).join([f"- {issue}" for issue in metrics.get('form_issues', ['No issues detected'])])}. All the issues except the ones containing "Good form!..." are negative.
@@ -230,10 +312,10 @@ class FeedbackAgent:
         {"".join([f"- {angle}: min={stats['min']:.1f}°, max={stats['max']:.1f}°, range={stats['range']:.1f}° \n" for angle, stats in metrics.get('angle_stats', {}).items()])}
 
         BODY MOVEMENT:
-        {chr(10).join([f"- {landmark}: x={metrics['landmarks'][landmark]['x_range']:.1f}, y={metrics['landmarks'][landmark]['y_range']:.1f}, z={metrics['landmarks'][landmark]['z_range']:.1f}" for landmark in metrics.get('landmarks', {}).keys()])}
+        {chr(10).join([f"- {landmark}: x={data['x_range']:.1f}, y={data['y_range']:.1f}, z={data['z_range']:.1f}" for landmark, data in metrics.get('landmarks', {}).items()])}
 
         BODY PARTS OF INTEREST:
-        {chr(10).join([f"{i}: {landmark}" for i, landmark in enumerate(metrics['basic']['ldmrks_interest'])])}
+        {chr(10).join([f"{i}: {landmark}" for i, landmark in enumerate(ldmrks_interest)])}
 
         YOUR OUTPUT MUST FOLLOW THE FOLLWOING RULES and FORMAT:
         RULES:
@@ -245,12 +327,13 @@ class FeedbackAgent:
         6. Give meaning to the numbers, anchoring them to the workout goal and their real life meaning.
         7. You can only suggest one or two things to improve at a time, not more.
         8. Suggest only the following workouts: Push-ups, Squats. 
-        FORMAT:
         
+        FORMAT:
         💪 **POSITIVES**
+
         🔍 **IMPROVEMENT AREAS**
-        🏋️‍♂️**ACTIONABLE TIPS**
-    
+        
+        🏋️‍♂️ **ACTIONABLE TIPS**
         """
         
         try:
@@ -274,14 +357,13 @@ class FeedbackAgent:
             # Extract the response content and standardize formatting
             feedback_text = response['message']['content']
             
-            
             # Create structured feedback dictionary
             feedback_dict = {
-                'workout_name': metrics['basic']['workout_name'],
-                'reps_completed': metrics['basic']['reps_completed'],
-                'reps_goal': metrics['basic']['reps_goal'],
-                'duration': metrics['basic']['duration_seconds'],
-                'strictness': metrics['basic']['strictness_crit'],
+                'workout_name': workout_name,
+                'reps_completed': reps_completed,
+                'reps_goal': reps_goal,
+                'duration': duration_seconds,
+                'strictness': strictness_crit,
                 'detailed_feedback': feedback_text,
                 'timestamp': datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             }
@@ -292,98 +374,60 @@ class FeedbackAgent:
         except Exception as e:
             # Fallback to template-based feedback if LLM fails
             return {
-                'workout_name': metrics['basic']['workout_name'],
-                'reps_completed': metrics['basic']['reps_completed'],
-                'reps_goal': metrics['basic']['reps_goal'],
-                'duration': metrics['basic']['duration_seconds'],
-                'strictness': metrics['basic']['strictness_crit'],
+                'workout_name': workout_name,
+                'reps_completed': reps_completed,
+                'reps_goal': reps_goal,
+                'duration': duration_seconds,
+                'strictness': strictness_crit,
                 'detailed_feedback': f"Error getting LLM feedback: {str(e)}. Falling back to template feedback.",
                 'timestamp': datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             }
         
 
-    def format_feedback(self, feedback_dict:dict)->str:
-        """Convert feedback dictionary to standardized HTML format"""
+    def format_feedback(self, feedback_dict: Dict[str, Any]) -> str:
+        """Format the feedback into a structured template"""
+
+        # Get feedback values safely with defaults
+        workout_name = feedback_dict.get('workout_name', 'N/A')
+        reps_completed = feedback_dict.get('reps_completed', 'N/A')
+        reps_goal = feedback_dict.get('reps_goal', 'N/A')
+        duration = feedback_dict.get('duration', 'N/A')
+        strictness = feedback_dict.get('strictness', 'N/A')
+        timestamp = feedback_dict.get('timestamp', 'N/A')
+        detailed_feedback = feedback_dict.get('detailed_feedback', '')
         
-        # Helper function to convert markdown-like LLM output to HTML
-        def format_llm_details_to_html(details_text: str) -> str:
-            if not details_text or not isinstance(details_text, str):
-                return "<p>No detailed feedback available.</p>"
+        template = f"""## Workout Analysis: {workout_name}
+### Session Overview
+**Reps Completed:** {reps_completed}/{reps_goal}
 
-            html_output = []
-            
-            # Replace markdown headers with HTML headers
-            details_text = details_text.replace("💪 **POSITIVES**", "<h4>💪 POSITIVES</h4>")
-            details_text = details_text.replace("🔍 **IMPROVEMENT AREAS**", "<h4>🔍 IMPROVEMENT AREAS</h4>")
-            details_text = details_text.replace("🏋️‍♂️**ACTIONABLE TIPS**", "<h4>🏋️‍♂️ ACTIONABLE TIPS</h4>") # Adjusted emoji to match prompt
-            details_text = details_text.replace("💡 **ACTIONABLE TIPS**", "<h4>💡 ACTIONABLE TIPS</h4>") # Keep if this variant is also possible
+**Duration:** {duration} seconds
 
+**Strictness Level:** {strictness}
 
-            lines = details_text.split('\n')
-            in_list = False
-            for line in lines:
-                line = line.strip()
-                if not line:
-                    if in_list:
-                        html_output.append("</ul>")
-                        in_list = False
-                    continue
+### Feedback
 
-                if line.startswith("<h4>"):
-                    if in_list:
-                        html_output.append("</ul>")
-                        in_list = False
-                    html_output.append(line)
-                elif line.startswith("- "):
-                    if not in_list:
-                        html_output.append("<ul>")
-                        in_list = True
-                    html_output.append(f"<li>{line[2:].strip()}</li>")
-                elif line: # Handle lines that are not headers or list items (e.g. if LLM adds extra text)
-                    if in_list:
-                        html_output.append("</ul>")
-                        in_list = False
-                    html_output.append(f"<p>{line}</p>")
-
-
-            if in_list:
-                html_output.append("</ul>")
-            
-            return "\n".join(html_output)
-
-        detailed_feedback_html = format_llm_details_to_html(feedback_dict.get('detailed_feedback', ''))
-
-        template = f"""
-        <div class="workout-feedback">
-            <h1>Workout Analysis: {feedback_dict.get('workout_name', 'N/A')}</h1>
-            <h3>Session Overview</h3>
-            <ul>
-                <li><strong>Reps Completed:</strong> {feedback_dict.get('reps_completed', 'N/A')}/{feedback_dict.get('reps_goal', 'N/A')}</li>
-                <li><strong>Duration:</strong> {feedback_dict.get('duration', 'N/A')} seconds</li>
-                <li><strong>Strictness Level:</strong> {feedback_dict.get('strictness', 'N/A')}</li>
-            </ul>
-
-            <h3>Feedback</h3>
-            <div class="detailed-feedback-content">
-                {detailed_feedback_html}
-            </div>
-            
-            <hr>
-            <p><em>Analysis generated on {feedback_dict.get('timestamp', 'N/A')}</em></p>
-        </div>
+{detailed_feedback}        
+---
+*Analysis generated on {timestamp}. This analysis was generated using artificial intelligence and should be considered as general guidance rather than professional fitness advice. Always consult with a certified trainer for personalized recommendations.*
         """
         return template
 
-    def agent_pipeline(self):
+    def agent_pipeline(self)->Dict[str,Any]:
         """Main pipeline to extract data, generate feedback and format it"""
         # make sure the model is available
         if not self.model_available():
             print("Model is not available.")
-            return
-        else:
-            print("Model is available.")
-            # load the workout data
-            self.load_workout_data()
+            raise RuntimeError("Model is not available.")
+        
+        # load the workout data
+        self.load_workout_data()
+        
+        # Check if we have workout data
+        if self.workout_metadata.empty or self.workout_analysis.empty:
+            print("No workout data available.")
+            raise ValueError("No workout data available. Please load workout data first.")
+            
+        try:
             # extract the workout data
             metrics = self.extract_workout_data()
             # generate the feedback
@@ -397,6 +441,9 @@ class FeedbackAgent:
                 'metrics': metrics,
                 'feedback': feedback
             }
+        except Exception as e:
+            print(f"Error in agent pipeline: {e}")
+            raise e
 
 
 
@@ -404,19 +451,17 @@ if __name__ == "__main__":
     conn = duckdb.connect("data/gymBuddy_db.db")
     model = 'gemma3:1b'
     feedback_agent = FeedbackAgent(conn)
-    #feedback_agent.model_available()
-    #feedback_agent.load_workout_data()
-    #print(f"""workout_metadata: {feedback_agent.workout_metadata}""")
-    #print(f"""workout_analysis: {feedback_agent.workout_analysis}""")
-    #print(f"""landmarks: {feedback_agent.landmarks}""")
-    #print(f"""landmarks_details: {feedback_agent.landmarks_details}""")
-    #extracted_data = feedback_agent.extract_workout_data()
-    #print(extracted_data)
-    #print('Generating feedback...')
-    #feedback = feedback_agent.generate_feedback(extracted_data)
-    #formatted_feedback = feedback_agent.format_feedback(feedback)
-    #print(formatted_feedback)
-    feedback = feedback_agent.agent_pipeline()
     
-    print(feedback['formatted_feedback'])
-    feedback_agent.db_conn.close()
+    try:
+        feedback = feedback_agent.agent_pipeline()
+        
+        if feedback:
+            print(feedback['formatted_feedback'])
+        else:
+            print("No feedback was generated.")
+    except Exception as e:
+        print(f"Error generating feedback: {e}")
+    finally:
+        # Close the database connection
+        if conn is not None:
+            conn.close()

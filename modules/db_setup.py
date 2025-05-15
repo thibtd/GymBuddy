@@ -1,6 +1,6 @@
 import duckdb 
 
-def setup_database(conn:duckdb.connect):
+def setup_database(conn:duckdb.DuckDBPyConnection):
     #create a sequence for the workout ids.
     conn.sql("""CREATE SEQUENCE IF NOT EXISTS workout_id_seq INCREMENT BY 1; """)
     
@@ -37,8 +37,8 @@ def setup_database(conn:duckdb.connect):
             FOREIGN KEY (workout_id) REFERENCES workout(ID))
             """)
     print("DuckDB setup complete.")
-    print(conn.sql(""" describe workout """))
-    print(conn.sql(""" describe workout_analysis """))
+    #print(conn.sql(""" describe workout """))
+    #print(conn.sql(""" describe workout_analysis """))
     
     
 

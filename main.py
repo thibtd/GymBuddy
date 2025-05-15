@@ -29,12 +29,14 @@ async def get(request: Request):
 async def camera_feed(websocket: WebSocket):
     await websocket.accept()
     print("WebSocket connected")
-    start_detection = False
-    wo_names = []
-    wo_reps = []
-    analysis_data = {"type": "data", "message": "Let's get started with your workout"}
-    remaining_reps = np.infty
-    src = "videos/puFullBody.MOV"
+    start_detection:bool = False
+    wo_names:list = []
+    wo_reps:list = []
+    analysis_data:dict = {"type": "data", "message": "Let's get started with your workout"}
+    remaining_reps:int = 0
+    reps_finished:bool = False
+    feedback_data:dict = {"type": 'feedback', "message": ""} # Empty string to trigger placeholder
+    src:str = "videos/puFullBody.MOV"
     #src = 'videos/pu_long_multi_cam_knees.MOV'
     #src = 'videos/matis_pu_cul.mp4'
     #src = 'videos/matis_pu.mov'
@@ -85,6 +87,7 @@ async def camera_feed(websocket: WebSocket):
                     start_detection = False
                 elif data.get("type") == "start":
                     start_detection = True
+                    
                     print("Received start command")
             except asyncio.TimeoutError:
                 # No message received, continue processing
@@ -96,8 +99,10 @@ async def camera_feed(websocket: WebSocket):
 
             # retrieve and process video
             remaining_reps = buddy.goal_reps - buddy.count_rep
+            
             if start_detection:
                 frame = buddy.detect()
+                reps_finished= False
                 
 
                 analysis_data = {
@@ -115,20 +120,36 @@ async def camera_feed(websocket: WebSocket):
                     wo_reps.append(buddy.count_rep)
                     buddy.count_rep = 0
                     start_detection = False
-                    # call the function to give feedback
-                    # buddy.give_feedback()
-
+                    reps_finished = True
+                    print(f"reps_finished: {reps_finished}")
             else:
+                print("start false")
+                if reps_finished:
+                    print("reps finished")
+                    #feedback = buddy.give_feedback()
+                    feedback='1234 feedback'
+                    # Send the feedback to the client
+                    feedback_data = {
+                        "type": 'feedback',
+                        "message": feedback,
+                    }
+                    print(f"Feedback: {feedback}")
+                    reps_finished = False
+                    
+                    
                 ret, frame = buddy.cap.read()
                 #frame = cv2.resize(frame, (720, 720))
                 if not ret:
                     print("No frame received from GymBuddy")
                     break
+
             if frame is None:
                 print("No frame received from GymBuddy")
                 break
-
+            
             await websocket.send_text(json.dumps(analysis_data))
+            await websocket.send_text(json.dumps(feedback_data))
+            
             try:
                 frame = cv2.resize(frame, (1080, 720))
                 _, encoded_frame = cv2.imencode(".jpg", frame)

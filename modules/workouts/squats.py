@@ -2,6 +2,7 @@ from modules.workouts.workoutParent import Workout
 import numpy as np
 from numpy import ndarray
 from typing import List, Dict, Any
+from modules.utils import Landmark
 
 
 class Squats(Workout):
@@ -21,22 +22,20 @@ class Squats(Workout):
 
     def count_reps(self) -> int:
         # handles the logic of when to determine if squat is counted
-        angle: ndarray = np.zeros((0, 1))
         count: int = 0
         angle = self._compute_and_store_angle('knee', self.ankle_idx, self.knee_idx, self.hip_idx)
 
         down_threshold: int = 90
         up_threshold: int = 150
         if self.form:
-            if angle.size > 0:
-                if angle <= down_threshold:
-                    if not self.down:
-                        self.down = True
-                elif angle >= up_threshold:
-                    if self.down:
-                        self.down = False
-                        self.form = None
-                        count = 1
+            if angle <= down_threshold:
+                if not self.down:
+                    self.down = True
+            elif angle >= up_threshold:
+                if self.down:
+                    self.down = False
+                    self.form = False
+                    count = 1
             print("down", self.down)
         return count
 
@@ -51,11 +50,11 @@ class Squats(Workout):
         3) shoulders over ankles 
         """
         # get the landmarks
-        ankle = self._get_landmark(self.ankle_idx)
-        knee = self._get_landmark(self.knee_idx)
-        hip = self._get_landmark(self.hip_idx)
-        shoulder = self._get_landmark(self.shoulder_idx)
-        toes = self._get_landmark(self.toes_idx)
+        ankle:Landmark = self._get_landmark(self.ankle_idx)
+        knee:Landmark = self._get_landmark(self.knee_idx)
+        hip:Landmark = self._get_landmark(self.hip_idx)
+        shoulder:Landmark = self._get_landmark(self.shoulder_idx)
+        toes:Landmark = self._get_landmark(self.toes_idx)
 
         # get the parameters 
         variation:int = 5
@@ -68,8 +67,8 @@ class Squats(Workout):
         hips_angle:float = self._compute_and_store_angle('hips', self.shoulder_idx, self.hip_idx, self.knee_idx)
         
         # conditions 
-        knee_to_foot: bool = None
-        hips_angles_bool: bool = None
+        knee_to_foot: bool = False
+        hips_angles_bool: bool = False
         shoulders_over_ankles: bool = (np.round(shoulder.x,1) - np.round(ankle.x,1) < variation)
 
         if not self.down:
