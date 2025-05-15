@@ -34,9 +34,9 @@ async def camera_feed(websocket: WebSocket):
     wo_reps = []
     analysis_data = {"type": "data", "message": "Let's get started with your workout"}
     remaining_reps = np.infty
-    #src = "videos/puFullBody.MOV"
+    src = "videos/puFullBody.MOV"
     #src = 'videos/pu_long_multi_cam_knees.MOV'
-    src = 'videos/matis_pu_cul.mp4'
+    #src = 'videos/matis_pu_cul.mp4'
     #src = 'videos/matis_pu.mov'
     #src = 'videos/squats_karo_landscape.MOV'
 
