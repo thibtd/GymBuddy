@@ -36,6 +36,9 @@ ws.onmessage = (event) => {
         } else if (data.type === 'history') {
             console.log('History update received:');
             updateHistory(data.message);
+        } else if (data.type === 'feedback') {
+            console.log('Feedback received:');
+            addFeedbackToHistory(data.message);
         }
     } else {
         const imageBlob = new Blob([event.data], { type: "image/jpeg" });
@@ -283,8 +286,106 @@ function updateHistory(rawHistoryHtml) {
     }
 }
 
+// --- FEEDBACK SECTION CREATION ---
+// Ensure feedback section exists under history section
+function ensureFeedbackSection() {
+    let feedbackSection = document.getElementById('feedback-section');
+    if (!feedbackSection) {
+        feedbackSection = document.createElement('div');
+        feedbackSection.id = 'feedback-section';
+        feedbackSection.innerHTML = `
+            <h2 style="font-size: 1.5rem; margin-bottom: 1rem; padding-bottom: 0.5rem; border-bottom: 2px solid var(--light);">Feedback</h2>
+            <div id="feedback-list">
+                <div id="feedback-empty" style="text-align: center; color: var(--gray); padding: 2rem 0;">
+                    <i class="fas fa-comment-dots" style="font-size: 2rem; margin-bottom: 1rem;"></i>
+                    <p>No feedback yet. Complete a workout to receive feedback!</p>
+                </div>
+            </div>
+        `;
+        // Insert after historyDiv
+        if (historyDiv && historyDiv.parentNode) {
+            historyDiv.parentNode.insertBefore(feedbackSection, historyDiv.nextSibling);
+        }
+    }
+}
 
-        
+function addFeedbackToHistory(feedbackHtml) {
+    ensureFeedbackSection();
+    const feedbackList = document.getElementById('feedback-list');
+    const feedbackEmpty = document.getElementById('feedback-empty');
+    if (!feedbackList) return;
+    // If feedbackHtml is empty, show the empty state and return
+    if (!feedbackHtml || feedbackHtml.trim() === "") {
+        if (feedbackEmpty) feedbackEmpty.style.display = 'block';
+        // Remove any previous feedback
+        const prev = document.getElementById('feedback-static');
+        if (prev) prev.remove();
+        return;
+    }
+    // Hide the empty state if present
+    if (feedbackEmpty) feedbackEmpty.style.display = 'none';
+    // Check if feedback is already displayed and unchanged (compare raw HTML, not innerHTML)
+    let prev = document.getElementById('feedback-static');
+    if (prev) {
+        // Store the last feedbackHtml as a property for static comparison
+        if (prev._lastFeedbackHtml === feedbackHtml) {
+            // No change, do nothing
+            return;
+        } else {
+            // Update HTML and animate bounce
+            const prevText = prev.querySelector('.feedback-text');
+            if (prevText) prevText.innerHTML = feedbackHtml;
+            prev._lastFeedbackHtml = feedbackHtml;
+            prev.style.animation = 'feedbackBounce 0.4s';
+            prev.addEventListener('animationend', () => {
+                prev.style.animation = '';
+            }, { once: true });
+            return;
+        }
+    }
+    // Remove any previous feedback (shouldn't be needed, but for safety)
+    if (prev) prev.remove();
+    // Create static feedback entry
+    const entryDiv = document.createElement('div');
+    entryDiv.id = 'feedback-static';
+    entryDiv.className = 'workout-entry';
+    entryDiv.style.backgroundColor = 'var(--light)';
+    entryDiv.style.color = 'var(--dark)';
+    entryDiv.style.marginBottom = '10px';
+    entryDiv.style.padding = '10px';
+    entryDiv.style.borderRadius = '8px';
+    entryDiv.style.boxShadow = '0 2px 4px rgba(0,0,0,0.08)';
+    entryDiv.style.transition = 'transform 0.2s';
+    entryDiv._lastFeedbackHtml = feedbackHtml;
+    // Insert HTML directly (already sanitized/converted on backend)
+    entryDiv.innerHTML = `
+        <div class="feedback-text" style="padding:0 font-size=0.875em;">
+            ${feedbackHtml}
+        </div>
+    `;
+
+    feedbackList.appendChild(entryDiv);
+    entryDiv.style.opacity = '0';
+    entryDiv.style.transform = 'translateY(10px)';
+    setTimeout(function() {
+        entryDiv.style.opacity = '1';
+        entryDiv.style.transform = 'translateY(0)';
+    }, 10);
+}
+
+// Add feedback bounce animation to the page
+(function addFeedbackBounceStyle() {
+    const style = document.createElement('style');
+    style.textContent = `
+        @keyframes feedbackBounce {
+            0% { transform: scale(1); }
+            30% { transform: scale(1.08); }
+            60% { transform: scale(0.97); }
+            100% { transform: scale(1); }
+        }
+    `;
+    document.head.appendChild(style);
+})();
 
 ws.onclose = () => {
     console.log("WebSocket disconnected");

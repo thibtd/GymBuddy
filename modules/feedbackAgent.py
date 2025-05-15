@@ -385,7 +385,7 @@ class FeedbackAgent:
         
 
     def format_feedback(self, feedback_dict: Dict[str, Any]) -> str:
-        """Format the feedback into a structured template"""
+        """Format the feedback into a structured HTML template for direct frontend rendering"""
 
         # Get feedback values safely with defaults
         workout_name = feedback_dict.get('workout_name', 'N/A')
@@ -395,20 +395,25 @@ class FeedbackAgent:
         strictness = feedback_dict.get('strictness', 'N/A')
         timestamp = feedback_dict.get('timestamp', 'N/A')
         detailed_feedback = feedback_dict.get('detailed_feedback', '')
-        
-        template = f"""## Workout Analysis: {workout_name}
-### Session Overview
-**Reps Completed:** {reps_completed}/{reps_goal}
 
-**Duration:** {duration} seconds
+        # Convert markdown feedback to HTML using Python's markdown lib
+        try:
+            import markdown
+            # Remove leading/trailing whitespace and ensure consistent newlines
+            feedback_html = markdown.markdown(detailed_feedback.strip(), extensions=['extra'])
+        except ImportError:
+            # Fallback: wrap in <pre> if markdown is not available
+            feedback_html = f"<pre>{detailed_feedback}</pre>"
 
-**Strictness Level:** {strictness}
-
-### Feedback
-
-{detailed_feedback}        
----
-*Analysis generated on {timestamp}. This analysis was generated using artificial intelligence and should be considered as general guidance rather than professional fitness advice. Always consult with a certified trainer for personalized recommendations.*
+        template = f"""
+            <div class=\"feedback-details\">
+                {feedback_html}
+            </div>
+            <hr>
+            <div class=\"feedback-disclaimer\">
+                <em>Analysis generated on {timestamp}. This analysis was generated using artificial intelligence and should be considered as general guidance rather than professional fitness advice. Always consult with a certified trainer for personalized recommendations.</em>
+            </div>
+        </section>
         """
         return template
 

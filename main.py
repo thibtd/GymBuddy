@@ -126,8 +126,8 @@ async def camera_feed(websocket: WebSocket):
                 print("start false")
                 if reps_finished:
                     print("reps finished")
-                    #feedback = buddy.give_feedback()
-                    feedback='1234 feedback'
+                    feedback = buddy.give_feedback()
+                    #feedback='1234 feedback'
                     # Send the feedback to the client
                     feedback_data = {
                         "type": 'feedback',
