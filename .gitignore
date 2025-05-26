@@ -3,6 +3,13 @@ __pycache__/
 *.py[cod]
 *$py.class
 
+# folders
+videos/
+logs/
+notebooks/
+
+
+
 # C extensions
 *.so
 

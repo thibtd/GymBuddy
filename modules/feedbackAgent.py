@@ -5,7 +5,6 @@ import pandas as pd
 import numpy as np
 from scipy import signal 
 from datetime import datetime
-import subprocess
 from typing import Dict, Any, List, Optional, Union, cast
 
 

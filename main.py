@@ -8,11 +8,19 @@ import cv2
 from modules.gymBuddy import GymBuddy
 import numpy as np
 import os
+from apis.mobile_api import mobile_router
 
 # Get the absolute path to the current file's directory
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
-app = FastAPI()
+app = FastAPI(
+    title="GymBuddy API",
+    description="AI-Powered Personal Trainer Backend",
+    version="1.0.0"
+)
+
+# Include mobile API router
+app.include_router(mobile_router)
 
 # Mount static files
 app.mount("/static", StaticFiles(directory=os.path.join(BASE_DIR, "static")), name="static")
@@ -27,8 +35,11 @@ async def get(request: Request):
 
 @app.websocket("/ws")
 async def camera_feed(websocket: WebSocket):
+    print("WebSocket connection attempt received")
     await websocket.accept()
-    print("WebSocket connected")
+    print("WebSocket connected successfully")
+    print(f"Client address: {websocket.client}")
+    print(f"WebSocket headers: {websocket.headers}")
     start_detection:bool = False
     wo_names:list = []
     wo_reps:list = []
@@ -37,12 +48,15 @@ async def camera_feed(websocket: WebSocket):
     reps_finished:bool = False
     feedback_data:dict = {"type": 'feedback', "message": ""} # Empty string to trigger placeholder
     src:str = "videos/puFullBody.MOV"
+    #src = "videos/papa_squat.mp4"
     #src = 'videos/pu_long_multi_cam_knees.MOV'
     #src = 'videos/matis_pu_cul.mp4'
     #src = 'videos/matis_pu.mov'
     #src = 'videos/squats_karo_landscape.MOV'
 
-    #src= 0 
+    # Use video file for testing (not real-time camera)
+    #src = "videos/papa_squat.mp4"  # Use video file
+
     buddy = GymBuddy(src)
     if not buddy.cap.isOpened():
         print("Error: Could not open the camera.")
@@ -165,4 +179,4 @@ async def camera_feed(websocket: WebSocket):
     finally:
         buddy.cap.release()
         print("WebSocket disconnected")
-        await websocket.close()
+        # Don't call websocket.close() here as it may already be closed

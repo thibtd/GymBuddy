@@ -155,6 +155,7 @@ class GymBuddy:
 
         #retrieve the landmarks of interest from the current workout
         ldmrks_of_interest = self.current_workout._get_indices()
+        print(f"landmarks of interest: {ldmrks_of_interest}")
         ldmrks_keys = list(ldmrks_of_interest.keys())
         ldmrks_values = list(ldmrks_of_interest.values())
 

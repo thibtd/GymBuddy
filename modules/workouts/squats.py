@@ -132,4 +132,14 @@ class Squats(Workout):
         
         return display_list
             
+    def _get_indices(self)-> Dict[str, int]:
+        """Returns the indices of the landmarks used for squats."""
+        return {
+            "shoulder": self.shoulder_idx,
+            "wrist": self.wrist_idx,
+            "hip": self.hip_idx,
+            "ankle": self.ankle_idx,
+            "knee": self.knee_idx,
+            "toes": self.toes_idx
+        }
     

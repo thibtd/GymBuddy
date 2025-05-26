@@ -105,10 +105,7 @@ def draw_angle_arc(image, point1:list, point2:list, point3:list, angle_degrees:f
     start_angle_deg = math.degrees(angle21)
     end_angle_deg = math.degrees(angle23)
 
-    # Ensure angles are positive if needed by ellipse, though atan2 handles it
-    # start_angle_deg = (start_angle_deg + 360) % 360
-    # end_angle_deg = (end_angle_deg + 360) % 360
-
+  
     # Draw the ellipse (arc)
     # Axes lengths are (radius, radius) for a circular arc
     # Angle is the rotation of the ellipse (0 for a standard arc)
