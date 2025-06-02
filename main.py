@@ -47,16 +47,14 @@ async def camera_feed(websocket: WebSocket):
     remaining_reps:int = 0
     reps_finished:bool = False
     feedback_data:dict = {"type": 'feedback', "message": ""} # Empty string to trigger placeholder
-    src:str = "videos/puFullBody.MOV"
+    #src:str = "videos/puFullBody.MOV"
     #src = "videos/papa_squat.mp4"
     #src = 'videos/pu_long_multi_cam_knees.MOV'
     #src = 'videos/matis_pu_cul.mp4'
     #src = 'videos/matis_pu.mov'
     #src = 'videos/squats_karo_landscape.MOV'
-
-    # Use video file for testing (not real-time camera)
-    #src = "videos/papa_squat.mp4"  # Use video file
-
+    src = 0 
+    
     buddy = GymBuddy(src)
     if not buddy.cap.isOpened():
         print("Error: Could not open the camera.")
@@ -140,8 +138,8 @@ async def camera_feed(websocket: WebSocket):
                 print("start false")
                 if reps_finished:
                     print("reps finished")
-                    feedback = buddy.give_feedback()
-                    #feedback='1234 feedback'
+                    #feedback = buddy.give_feedback()
+                    feedback='1234 feedback'
                     # Send the feedback to the client
                     feedback_data = {
                         "type": 'feedback',

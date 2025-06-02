@@ -1,0 +1,26 @@
+services:
+  app:
+    build: .
+    ports:
+      - "80:80"
+    restart: always
+    volumes:
+      - .:/app
+      - /dev/video0:/dev/video0
+      - /tmp/.X11-unix:/tmp/.X11-unix
+    environment:
+      - OLLAMA_BASE_URL=http://ollama:11434 
+      - LD_LIBRARY_PATH=/opt/vc/lib
+      
+    privileged: true
+    depends_on:
+      - ollama # Ensures ollama starts before your app, if your app needs it at startup
+
+  ollama:
+    image: ollama/ollama:latest
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/ollama
+volumes:
+  ollama_data:
