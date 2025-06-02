@@ -2,19 +2,17 @@ services:
   app:
     build: .
     ports:
-      - "80:80"
+      - "8080:8080"
     restart: always
     volumes:
       - .:/app
-      - /dev/video0:/dev/video0
-      - /tmp/.X11-unix:/tmp/.X11-unix
     environment:
-      - OLLAMA_BASE_URL=http://ollama:11434 
-      - LD_LIBRARY_PATH=/opt/vc/lib
-      
-    privileged: true
+      - PYTHONUNBUFFERED=1
+      - OLLAMA_HOST=ollama:11434  # Connect to ollama service directly
     depends_on:
-      - ollama # Ensures ollama starts before your app, if your app needs it at startup
+      - ollama
+    networks:
+      - gymbuddy-network
 
   ollama:
     image: ollama/ollama:latest
@@ -22,5 +20,24 @@ services:
       - "11434:11434"
     volumes:
       - ollama_data:/ollama
+    networks:
+      - gymbuddy-network
+
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf
+      - ./ssl:/etc/nginx/ssl  # For SSL certificates
+    depends_on:
+      - app
+    networks:
+      - gymbuddy-network
 volumes:
   ollama_data:
+
+networks:
+  gymbuddy-network:
+    driver: bridge

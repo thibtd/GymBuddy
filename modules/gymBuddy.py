@@ -36,8 +36,8 @@ class GymBuddy:
         self.model = self.create_model()
 
         # set up the camera
-        self.cap = cv2.VideoCapture(source)
-        assert self.cap.isOpened(), "Error: Could not open the camera."
+        #self.cap = cv2.VideoCapture(source)
+        #assert self.cap.isOpened(), "Error: Could not open the camera."
         self.frame_timestamp:float = 0
         self.frame_count:int = 0
 
@@ -256,25 +256,28 @@ class GymBuddy:
             )
         return annotated_image
 
-    def detect(self) -> np.ndarray:
-        """Processes video frames, performs detection, and returns annotated frame."""
+    def process_frame_from_bytes(self, frame_bytes):
+        """Process frame data received from frontend"""
+        try:
+            # Convert bytes to numpy array
+            nparr = np.frombuffer(frame_bytes, np.uint8)
+            # Decode image
+            frame = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+            return frame
+        except Exception as e:
+            print(f"Error processing frame from bytes: {e}")
+            return None
+    
+    def detect_from_frame(self, frame):
+        """Process a single frame for exercise detection"""
+        if frame is None:
+            return None
         print(f'workout name: {self.workout_name}')
         print(f'current workout: {self.current_workout}')
         print(f'strictness: {self.strictness}')
-        fps =int(self.cap.get(cv2.CAP_PROP_FPS))
-        
-        #while self.cap.isOpened():
-        #grab the frame
-        success, im0 = self.cap.read()
-        if not success:
-            print(
-                "Video frame is empty or video processing has been successfully completed."
-            )
-            if self.input_type.lower() != "live":
-                self.cap.release() # Release video file
-            return np.array([None, None])
-
-        frame = im0.copy()
+        fps =30
+    
+        frame = frame.copy()
         height, width, _ = frame.shape
         frame = cv2.resize(frame, (720, int(720 * height / width))) # Maintain aspect ratio
         h, w, _ = frame.shape # Get new dimensions for coordinate conversion
@@ -385,9 +388,14 @@ class GymBuddy:
 
         return annotated_img
     
+    def detect(self):
+        """Legacy method - now redirects to detect_from_frame"""
+        # This method is now deprecated since we receive frames from frontend
+        print("Warning: detect() called but frames should come from frontend")
+        return None
+    
     def give_feedback(self):
         """ call to an Agent that will give feedback on the series that was done"""
         feedback:dict = self.feedback_agent.agent_pipeline()
         return feedback['formatted_feedback']
         pass
-        
