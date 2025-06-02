@@ -109,7 +109,7 @@ class GymBuddy:
     def _setup_duckdb(self)-> None:
         """Setup DuckDB database for the analysed data"""
         # Create a DuckDB database connection
-        self.conn = duckdb.connect('data/gymBuddy_db.db')
+        self.conn = duckdb.connect('db/gymBuddy_db.db')
         #create the tables in the db if they do not exist
         setup_database(self.conn)
 
