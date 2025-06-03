@@ -32,5 +32,13 @@ llm: ## call to ollama to pull the model mentioned by $(MODEL)
 run_test: ## run the app with fatsapi for testing (reloading)
 	uvicorn main:app --reload
 
+run_docker: ## run the app in a docker container
+	@echo "Starting Docker Daemon"
+	open -a Docker
+	@echo "Waiting for Docker to start..."
+	sleep 5
+	@echo "Building and running the Docker container..."
+	docker compose up --build
+
 all: ## Install dependencies, run tests, format code, and lint. 
 	install test format lint 

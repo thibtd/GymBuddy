@@ -10,11 +10,93 @@ const statusEl = document.getElementById('status');
 let videoElement = null;
 let mediaStream = null;
 let isCapturing = false;
+let lastAnalysisData = null;
 
 // Update WebSocket connection to use secure protocol when on HTTPS
 const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
 const ws = new WebSocket(`${protocol}//${window.location.host}/ws`);
 ws.binaryType = "arraybuffer";
+
+// --- Drawing Helpers ---
+
+// MediaPipe standard connections for drawing the skeleton
+const POSE_CONNECTIONS = [[0, 1], [1, 2], [2, 3], [3, 7], [0, 4], [4, 5],
+[5, 6], [6, 8], [9, 10], [11, 12], [11, 13],
+[13, 15], [15, 17], [15, 19], [15, 21], [17, 19],
+[12, 14], [14, 16], [16, 18], [16, 20], [16, 22],
+[18, 20], [11, 23], [12, 24], [23, 24], [23, 25],
+[24, 26], [25, 27], [26, 28], [27, 29], [28, 30],
+[29, 31], [30, 32], [27, 31], [28, 32]];
+
+function drawSkeleton(landmarks) {
+    if (!landmarks || landmarks.length === 0) return;
+    ctx.lineWidth = 3;
+    ctx.strokeStyle = 'cyan';
+
+    POSE_CONNECTIONS.forEach(conn => {
+        const p1 = landmarks[conn[0]];
+        const p2 = landmarks[conn[1]];
+        if (p1 && p2) {
+            ctx.beginPath();
+            ctx.moveTo(p1.x * canvas.width, p1.y * canvas.height);
+            ctx.lineTo(p2.x * canvas.width, p2.y * canvas.height);
+            ctx.stroke();
+        }
+    });
+}
+
+function drawLandmarks(landmarks) {
+    if (!landmarks || landmarks.length === 0) return;
+    ctx.fillStyle = 'red';
+    landmarks.forEach(lm => {
+        ctx.beginPath();
+        ctx.arc(lm.x * canvas.width, lm.y * canvas.height, 5, 0, 2 * Math.PI);
+        ctx.fill();
+    });
+}
+
+function drawInfoText(data) {
+    ctx.font = 'bold 24px Arial';
+    ctx.fillStyle = data.form_ok ? '#38b000' : '#d00000'; // Success or Danger color
+    ctx.textAlign = 'left';
+    ctx.fillText(data.form_message, 20, 40);
+    
+    ctx.font = 'bold 36px Arial';
+    ctx.fillStyle = 'white';
+    ctx.fillText(`Reps: ${data.rep_count} / ${data.goal_reps}`, 20, 80);
+}
+
+function drawAngles(data) {
+    if (!data.landmarks || !data.display_angles) return;
+    
+    ctx.font = 'bold 18px Arial';
+    ctx.fillStyle = 'yellow';
+    
+    data.display_angles.forEach((angleInfo, index) => {
+        const [idx1, idx2, idx3] = angleInfo.joint_indices;
+        const p1 = data.landmarks[idx1];
+        const p2 = data.landmarks[idx2]; // The joint
+        const p3 = data.landmarks[idx3];
+
+        if (!p1 || !p2 || !p3) return;
+    
+
+        // Draw the angle arc
+        const p1_coords = { x: p1.x * canvas.width, y: p1.y * canvas.height };
+        const p2_coords = { x: p2.x * canvas.width, y: p2.y * canvas.height };
+        const p3_coords = { x: p3.x * canvas.width, y: p3.y * canvas.height };
+
+        const angleRad1 = Math.atan2(p1_coords.y - p2_coords.y, p1_coords.x - p2_coords.x);
+        const angleRad2 = Math.atan2(p3_coords.y - p2_coords.y, p3_coords.x - p2_coords.x);
+
+        ctx.strokeStyle = 'yellow';
+        ctx.lineWidth = 4;
+        ctx.beginPath();
+        ctx.arc(p2_coords.x, p2_coords.y, 30, angleRad1, angleRad2);
+        ctx.stroke();
+        ctx.fillText(`${angleInfo.name}: ${angleInfo.value.toFixed(0)}°`,p2_coords.x, p2_coords.y-2);
+    });
+}
 
 // Initialize camera with better error handling
 async function initCamera() {
@@ -53,12 +135,17 @@ async function initCamera() {
         
         videoElement.srcObject = mediaStream;
         await videoElement.play();
+
+        canvas.width = videoElement.videoWidth;
+        canvas.height = videoElement.videoHeight;
         
-        console.log('Camera initialized successfully');
         updateStatus("Camera ready! Configure your workout settings.", "ready");
         
-        // Start capturing frames immediately
         startFrameCapture();
+        renderLoop(); // Start the rendering loop
+
+        // Start capturing frames immediately
+        //startFrameCapture();
         return true;
     } catch (error) {
         console.error('Camera error:', error);
@@ -80,39 +167,50 @@ async function initCamera() {
     }
 }
 
-// Capture and send frames
 function captureAndSendFrame() {
-    if (!videoElement || !isCapturing) return;
-    
+    if (!videoElement || !isCapturing || ws.readyState !== WebSocket.OPEN) return;
+
     const tempCanvas = document.createElement('canvas');
-    const tempCtx = tempCanvas.getContext('2d');
-    
     tempCanvas.width = videoElement.videoWidth;
     tempCanvas.height = videoElement.videoHeight;
-    
+    const tempCtx = tempCanvas.getContext('2d');
     tempCtx.drawImage(videoElement, 0, 0);
-    
+
     tempCanvas.toBlob((blob) => {
-        if (blob && ws.readyState === WebSocket.OPEN) {
-            blob.arrayBuffer().then(buffer => {
-                ws.send(buffer);
-            });
+        if (blob) {
+            blob.arrayBuffer().then(buffer => ws.send(buffer));
         }
     }, 'image/jpeg', 0.8);
 }
 
-// Start frame capture loop
+
 function startFrameCapture() {
     isCapturing = true;
-    
-    function capture() {
-        if (isCapturing) {
-            captureAndSendFrame();
-            setTimeout(capture, 100); // 10 FPS for testing
+    const captureInterval = setInterval(() => {
+        if (!isCapturing) {
+            clearInterval(captureInterval);
+            return;
         }
-    }
+        captureAndSendFrame();
+    }, 100); // Send frames at 10 FPS
+}
+
+function renderLoop() {
+    if (!videoElement || !ctx) return;
     
-    capture();
+    // Draw the local video feed to the canvas
+    ctx.drawImage(videoElement, 0, 0, canvas.width, canvas.height);
+
+    // If we have analysis data, draw overlays
+    if (lastAnalysisData) {
+        drawSkeleton(lastAnalysisData.landmarks);
+        drawLandmarks(lastAnalysisData.landmarks);
+        drawInfoText(lastAnalysisData);
+        drawAngles(lastAnalysisData);
+    }
+
+    // Continue the loop
+    requestAnimationFrame(renderLoop);
 }
 
 // WebSocket message handler
@@ -120,15 +218,16 @@ ws.onmessage = (event) => {
     if (typeof event.data === "string") {
         const data = JSON.parse(event.data);
         console.log('Received:', data);
-        
-        if (data.type === 'data') {
+        if (data.landmarks) {
+            lastAnalysisData = data;
+        }else if (data.type === 'data') {
             updateStatus(data.message, data.status);
         } else if (data.type === 'history') {
             updateHistory(data.message);
         } else if (data.type === 'feedback') {
             addFeedbackToHistory(data.message);
         }
-    } else {
+    } /*else {
         // Display received frame
         const imageBlob = new Blob([event.data], { type: "image/jpeg" });
         const imageURL = URL.createObjectURL(imageBlob);
@@ -140,7 +239,7 @@ ws.onmessage = (event) => {
             URL.revokeObjectURL(imageURL);
         };
         img.src = imageURL;
-    }
+    }*/
 };
 
 function updateStatus(message, status) {
@@ -215,11 +314,6 @@ workoutSelect?.addEventListener('change', () => {
     console.log("Selected workout:", selectedWorkout);
 });
 
-repsSelect?.addEventListener('change', () => {
-    const selectedReps = repsSelect.value;
-    ws.send(JSON.stringify({ type: 'reps', value: selectedReps }));
-    console.log("Selected reps:", selectedReps);
-});
 
 strictnessSelect?.addEventListener('change', () => {
     const selectedStrictness = strictnessSelect.value;
@@ -229,9 +323,14 @@ strictnessSelect?.addEventListener('change', () => {
 
 goButton?.addEventListener('click', () => {
     console.log("Starting workout...");
-    ws.send(JSON.stringify({ type: 'start' }));
+    ws.send(JSON.stringify({type: 'start', value: true}));
+    ws.send(JSON.stringify({type:'workout',value: workoutSelect.value}));
+    ws.send(JSON.stringify({type:'reps', value:repsSelect.value}));
+    ws.send(JSON.stringify({type:'strictness',value: strictnessSelect.value}));
+    //ws.send(JSON.stringify({ type: 'start' }));
     updateStatus("Workout started! Get into position...", "in_progress");
 });
+
 
 // WebSocket event handlers
 ws.onopen = () => {

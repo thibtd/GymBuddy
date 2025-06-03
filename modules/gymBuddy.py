@@ -53,6 +53,8 @@ class GymBuddy:
 
         # set current workout
         self.current_workout:Workout = self.create_workout(self.workout_name)
+        self.workout_completed:bool = False
+        self.last_status_time:float = 0
 
         #set time for start of workout
         self.time:datetime = datetime.now()
@@ -268,10 +270,10 @@ class GymBuddy:
             print(f"Error processing frame from bytes: {e}")
             return None
     
-    def detect_from_frame(self, frame):
+    def detect_from_frame(self, frame) -> dict:
         """Process a single frame for exercise detection"""
         if frame is None:
-            return None
+            return {}
         print(f'workout name: {self.workout_name}')
         print(f'current workout: {self.current_workout}')
         print(f'strictness: {self.strictness}')
@@ -294,17 +296,25 @@ class GymBuddy:
                 mp_image, self.frame_timestamp
             )
 
-        # Process the results
+        # process the results
+        #annotated_img = frame
+        analysis_data = {
+            "landmarks": [],
+            "rep_count": self.count_rep,
+            "form_ok": True,
+            "form_message": "Initializing...",
+            "display_angles": [],
+            "is_down_phase": self.current_workout.down,
+        }
 
-        annotated_img = frame
 
         if self.POSE_LANDMARK_RESULT and self.POSE_LANDMARK_RESULT.pose_landmarks:
 
-            annotated_img = self.draw_landmarks_on_image(annotated_img)
+            #annotated_img = self.draw_landmarks_on_image(annotated_img)
 
             
             res = self.POSE_LANDMARK_RESULT.pose_landmarks
-
+            analysis_data["landmarks"] = [{"x": lm.x, "y": lm.y, "z": lm.z} for lm in res[0]]
             # Determine side on the first frame 
             if self.frame_count == 0:
                 self.left_side = is_left_side(res)
@@ -314,7 +324,6 @@ class GymBuddy:
                 #update the indices of the current workout
                 self.current_workout.update_indices()
                 print(f'left side curr wo {self.current_workout.left_side}')
-                self.current_workout.set_res(res)
 
 
             # Count reps
@@ -327,7 +336,14 @@ class GymBuddy:
             print(f"form: {self.current_workout.form}")
             print(f"fix form: {self.current_workout.fix_form}")
 
+            # update analysis data
+            analysis_data["rep_count"] = self.count_rep
+            analysis_data["form_ok"] = self.current_workout.form
+            analysis_data["form_message"] = self.current_workout.fix_form
+            analysis_data["display_angles"] = self.current_workout.get_display_angles()
+            analysis_data["is_down_phase"] = self.current_workout.down
 
+            '''
             # display form status
             form_color = (0, 255, 0) if self.current_workout.form else (0, 0, 255)
             cv2.putText(annotated_img,self.current_workout.fix_form, (30, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, form_color, 2)
@@ -376,7 +392,7 @@ class GymBuddy:
                 0
             )
             print(f"frame: {self.frame_count}, timestamp: {self.frame_timestamp}, rep count: {self.count_rep}, goal reps: {self.goal_reps}")
-            
+            '''
             
             # save analysed data to duckdb 
             self._save_data_to_duckdb()
@@ -386,16 +402,10 @@ class GymBuddy:
             #increment frame count
             self.frame_count += 1
 
-        return annotated_img
-    
-    def detect(self):
-        """Legacy method - now redirects to detect_from_frame"""
-        # This method is now deprecated since we receive frames from frontend
-        print("Warning: detect() called but frames should come from frontend")
-        return None
+        return analysis_data
     
     def give_feedback(self):
         """ call to an Agent that will give feedback on the series that was done"""
         feedback:dict = self.feedback_agent.agent_pipeline()
         return feedback['formatted_feedback']
-        pass
+        

@@ -61,13 +61,15 @@ async def camera_feed(websocket: WebSocket):
     try:
         while True:
             try:
+
                 # Wait for message
                 message = await asyncio.wait_for(websocket.receive(), timeout=0.1)
-                
                 if 'text' in message:
-                    data = json.loads(message['text'])
-                    print(f"Received text message: {data}")
                     
+                    data = json.loads(message['text'])
+    
+                    print(f"Received text message: {data}")
+                    print(f"Data type: {data.get('type')}, Value: {data.get('value')}")
                     if data.get("type") == "workout":
                         workout_name = data.get("value", "push-ups")
                         buddy.set_workout(workout_name)
@@ -77,8 +79,9 @@ async def camera_feed(websocket: WebSocket):
                             "status": "ready"
                         }))
                         
-                    elif data.get("type") == "reps":
-                        reps = int(data.get("value", 10))
+                    if data.get("type") == "reps":
+                        reps = int(data.get("value", 1))
+                        print(f"Setting target reps to {reps}")
                         buddy.set_reps(reps)
                         await websocket.send_text(json.dumps({
                             "type": "data",
@@ -86,86 +89,59 @@ async def camera_feed(websocket: WebSocket):
                             "status": "ready"
                         }))
                         
-                    elif data.get("type") == "strictness":
+                    if data.get("type") == "strictness":
                         strictness = data.get("value", "strict")
                         buddy.set_strictness(strictness)
                         
-                    elif data.get("type") == "start":
+                    if data.get("type") == "start":
                         start_detection = True
                         buddy.count_rep = 0
-                        # Reset completion flag for new workout
-                        if hasattr(buddy, '_workout_completed'):
-                            delattr(buddy, '_workout_completed')
+                        buddy.workout_completed = False  # Reset workout completion statu
                         print("Starting detection!")
-                        await websocket.send_text(json.dumps({
-                            "type": "data",
-                            "message": f"Starting {buddy.workout_name}! Target: {buddy.goal_reps} reps",
-                            "status": "in_progress"
-                        }))
+                        
                 
                 elif 'bytes' in message:
+                    
                     # Process video frame
                     frame_data = message['bytes']
                     frame = buddy.process_frame_from_bytes(frame_data)
                     
-                    if frame is not None:
-                        if start_detection:
+                    if frame is not None and start_detection:
                             # Process the frame for exercise detection
-                            processed_frame = buddy.detect_from_frame(frame)
+                            analysis_data = await asyncio.to_thread(buddy.detect_from_frame,frame)
                             
-                            # Send status update (throttled)
-                            current_time = time.time()
-                            if not hasattr(buddy, '_last_status_time') or current_time - buddy._last_status_time > 1.0:
-                                buddy._last_status_time = current_time
-                                remaining_reps = buddy.goal_reps - buddy.count_rep
-                                
-                                # Only send progress update if not completed
-                                if buddy.count_rep < buddy.goal_reps:
-                                    await websocket.send_text(json.dumps({
-                                        "type": "data",
-                                        "message": f"Completed {buddy.count_rep} out of {buddy.goal_reps} {buddy.workout_name}, {remaining_reps} to go!",
-                                        "status": "in_progress"
-                                    }))
-                            
-                            print('remaining_reps:', remaining_reps)
-                            # Check if workout completed (FIX: should be == 0, not != 0)
-                            if remaining_reps == 0 and not hasattr(buddy, '_workout_completed'):
-                                buddy._workout_completed = True  # Flag to prevent multiple completions
-                                
+                           
+                            # Check if workout completed 
+                            if buddy.count_rep >= buddy.goal_reps and buddy.goal_reps>0:
+                                buddy.workout_completed = True  # Flag to prevent multiple completions
                                 await websocket.send_text(json.dumps({
                                     "type": "data",
                                     "message": f"Workout complete! You did {buddy.count_rep} {buddy.workout_name}!",
                                     "status": "completed"
                                 }))
                                 
-                                wo_names.append(buddy.workout_name)
-                                wo_reps.append(buddy.count_rep)
-                                
                                 print("Getting feedback from Ollama...")
-                                feedback_message = buddy.give_feedback()
+                                feedback_message = '1234'
+                                #feedback_message = await asyncio.to_thread(buddy.give_feedback)
+
                                 print(f"Feedback received: {feedback_message}")
                                 await websocket.send_text(json.dumps({
                                     "type": "feedback",
                                     "message": feedback_message,
                                 }))
-                                
+                                wo_names.append(buddy.workout_name)
+                                wo_reps.append(buddy.count_rep)
                                 start_detection = False
-                                buddy.count_rep = 0
-                                # Reset the completion flag for next workout
-                                if hasattr(buddy, '_workout_completed'):
-                                    delattr(buddy, '_workout_completed')
-                        else:
-                            # When not detecting, just use the raw frame
-                            processed_frame = frame
-                        
-                        # Always send frame back
-                        if processed_frame is not None:
-                            try:
-                                processed_frame = cv2.resize(processed_frame, (640, 480))  # Smaller for testing
-                                _, encoded_frame = cv2.imencode(".jpg", processed_frame, [cv2.IMWRITE_JPEG_QUALITY, 70])
-                                await websocket.send_bytes(encoded_frame.tobytes())
-                            except Exception as e:
-                                print(f"Error encoding frame: {e}")
+                            else:
+                                # Send current rep count and analysis data
+                                await websocket.send_text(json.dumps({
+                                    "type": "data",
+                                    "message": f"Current rep count: {buddy.count_rep}",
+                                    "status": "In Progress",
+                                }))
+                            # Send analysis data for rendering
+                            await websocket.send_text(json.dumps(analysis_data))   
+                            
                             
             except asyncio.TimeoutError:
                 # Send history when idle
