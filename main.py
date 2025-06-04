@@ -101,7 +101,7 @@ async def camera_feed(websocket: WebSocket):
                         
                 
                 elif 'bytes' in message:
-                    
+
                     # Process video frame
                     frame_data = message['bytes']
                     frame = buddy.process_frame_from_bytes(frame_data)
@@ -119,6 +119,7 @@ async def camera_feed(websocket: WebSocket):
                                     "message": f"Workout complete! You did {buddy.count_rep} {buddy.workout_name}!",
                                     "status": "completed"
                                 }))
+                                
                                 
                                 print("Getting feedback from Ollama...")
                                 feedback_message = '1234'

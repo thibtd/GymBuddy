@@ -27,7 +27,7 @@ class GymBuddy:
         workout_name: str = "Push-ups",
         strictness_crit: str = "loose",
         input_type: str = "Video",
-        model_path: str = "models/pose_landmarker_full.task",
+        model_path: str = "models/pose_landmarker_lite.task",
 
     ):
         # set up the model
@@ -58,6 +58,11 @@ class GymBuddy:
 
         #set time for start of workout
         self.time:datetime = datetime.now()
+
+        # Initialize buffers for logging and database
+        self.log_buffer:list[Dict[str, Any]] = []
+        self.workout_db_buffer:list[Dict[str, Any]] = []
+        self.wo_analysis_buffer:list[Dict[str, Any]] = []
 
         # Set up CSV logging
         self._setup_csv_logging()
@@ -119,7 +124,15 @@ class GymBuddy:
         """close the connection to the DuckDB database"""
         self.conn.close() 
 
-    def _save_data_to_duckdb(self)-> None:
+    def _get_duckdb_id(self)->int:
+        id = self.conn.sql("SELECT id FROM workout ORDER BY id DESC LIMIT 1").fetchone()
+        if id is not None:
+            return id[0]
+        else:
+            print("No workout entries found in the database.")
+            return 0
+
+    def _save_data_to_duckdb(self,id:int)-> None:
         """Save frame analysis data to a DuckDB database"""
         # if 1st frame, create a new workout entry
         time = datetime.now()
@@ -225,38 +238,6 @@ class GymBuddy:
     def print_result(self, result) -> None:
         self.POSE_LANDMARK_RESULT = result
 
-    def draw_landmarks_on_image(self, rgb_image: np.ndarray) -> np.ndarray:
-        annotated_image = np.copy(rgb_image)
-        if (self.POSE_LANDMARK_RESULT is None or 
-            not hasattr(self.POSE_LANDMARK_RESULT, 'pose_landmarks') or 
-            not self.POSE_LANDMARK_RESULT.pose_landmarks):
-            return annotated_image 
-        
-        pose_landmarks_list = self.POSE_LANDMARK_RESULT.pose_landmarks
-        annotated_image = np.copy(rgb_image)
-
-        # Loop through the detected poses to visualize.
-        for idx in range(len(pose_landmarks_list)):
-            pose_landmarks = pose_landmarks_list[idx]
-
-            # Draw the pose landmarks.
-            pose_landmarks_proto = landmark_pb2.NormalizedLandmarkList()
-            pose_landmarks_proto.landmark.extend(
-                [
-                    landmark_pb2.NormalizedLandmark(
-                        x=landmark.x, y=landmark.y, z=landmark.z
-                    )
-                    for landmark in pose_landmarks
-                ]
-            )
-           
-            solutions.drawing_utils.draw_landmarks(
-                annotated_image,
-                pose_landmarks_proto,
-                solutions.pose.POSE_CONNECTIONS,
-                solutions.drawing_styles.get_default_pose_landmarks_style(),
-            )
-        return annotated_image
 
     def process_frame_from_bytes(self, frame_bytes):
         """Process frame data received from frontend"""
@@ -342,67 +323,15 @@ class GymBuddy:
             analysis_data["form_message"] = self.current_workout.fix_form
             analysis_data["display_angles"] = self.current_workout.get_display_angles()
             analysis_data["is_down_phase"] = self.current_workout.down
-
-            '''
-            # display form status
-            form_color = (0, 255, 0) if self.current_workout.form else (0, 0, 255)
-            cv2.putText(annotated_img,self.current_workout.fix_form, (30, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, form_color, 2)
-
-
-            #display angles
-            display_angles = self.current_workout.get_display_angles()
-            y_offset = 60
-            landmarks_pixels = [(int(lm.x * w), int(lm.y * h)) for lm in res[0]] # Convert normalized to pixels
-            print(f'display_angles {display_angles}')
-            for angle_info in display_angles:
-                name = angle_info["name"]
-                value = angle_info["value"]
-                indices = angle_info["joint_indices"]
-                
-                # Display Text
-                angle_text = f"{name}: {value:.0f}"
-                cv2.putText(annotated_img, angle_text, (20, y_offset), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 0), 2)
-                y_offset += 30 # Move down for next angle text
-
-                # Draw Arc
-                try:
-                    pt1_coords = landmarks_pixels[indices[0]]
-                    pt2_coords = landmarks_pixels[indices[1]] # The joint where the arc is centered
-                    pt3_coords = landmarks_pixels[indices[2]]
-                    print(f"pt1: {pt1_coords}, pt2: {pt2_coords}, pt3: {pt3_coords}")
-                    # Draw the arc
-                    arc_color:tuple = (255, 255, 0) # Cyan
-                    draw_angle_arc(annotated_img, pt1_coords, pt2_coords, pt3_coords, value, arc_color, 2)
-                except IndexError:
-                    print(f"Warning: Landmark index out of bounds for drawing angle '{name}'.")
-                except Exception as e:
-                     print(f"Error drawing arc for {name}: {e}")
-
-            # add overlay of segmentation mask with color representing the form bool
-            segmentation_mask = self.POSE_LANDMARK_RESULT.segmentation_masks[0].numpy_view()
-            visualized_mask_colored = np.zeros_like(annotated_img, dtype=np.uint8)
-            mask_color = (0, 255, 0) if self.current_workout.form else (0, 0, 255)
-            bool_mask = segmentation_mask > 0.5
-            visualized_mask_colored[bool_mask] = mask_color
-            alpha = 0.1
             
-            annotated_img[bool_mask] = cv2.addWeighted(
-                annotated_img[bool_mask], 1.0 - alpha,
-                visualized_mask_colored[bool_mask], alpha,
-                0
-            )
-            print(f"frame: {self.frame_count}, timestamp: {self.frame_timestamp}, rep count: {self.count_rep}, goal reps: {self.goal_reps}")
-            '''
-            
-            # save analysed data to duckdb 
-            self._save_data_to_duckdb()
-            # Save landmarks to CSV after each frame
-            self._save_landmarks_to_csv()
+           
 
             #increment frame count
             self.frame_count += 1
 
         return analysis_data
+    
+    
     
     def give_feedback(self):
         """ call to an Agent that will give feedback on the series that was done"""

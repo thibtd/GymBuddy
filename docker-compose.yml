@@ -3,7 +3,6 @@ services:
     build: .
     ports:
       - "8080:8080"
-    restart: always
     volumes:
       - .:/app
     environment:
@@ -15,7 +14,7 @@ services:
       - gymbuddy-network
 
   ollama:
-    image: ollama/ollama:latest
+    image: ollama/ollama
     ports:
       - "11434:11434"
     volumes:
