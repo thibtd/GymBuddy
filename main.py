@@ -9,7 +9,6 @@ import cv2
 from modules.gymBuddy import GymBuddy
 import numpy as np
 import os
-import time
 from apis.mobile_api import mobile_router
 
 # Get the absolute path to the current file's directory
@@ -20,6 +19,7 @@ app = FastAPI(
     description="AI-Powered Personal Trainer Backend",
     version="1.0.0"
 )
+
 
 # Add CORS middleware for cross-origin requests
 app.add_middleware(
@@ -47,6 +47,7 @@ async def get(request: Request):
 @app.websocket("/ws")
 async def camera_feed(websocket: WebSocket):
     await websocket.accept()
+    print('piute')
     print("WebSocket connected successfully")
     
     start_detection = False
@@ -80,6 +81,7 @@ async def camera_feed(websocket: WebSocket):
                         }))
                         
                     if data.get("type") == "reps":
+                        
                         reps = int(data.get("value", 1))
                         print(f"Setting target reps to {reps}")
                         buddy.set_reps(reps)
@@ -114,12 +116,15 @@ async def camera_feed(websocket: WebSocket):
                             # Check if workout completed 
                             if buddy.count_rep >= buddy.goal_reps and buddy.goal_reps>0:
                                 buddy.workout_completed = True  # Flag to prevent multiple completions
+                                
                                 await websocket.send_text(json.dumps({
                                     "type": "data",
                                     "message": f"Workout complete! You did {buddy.count_rep} {buddy.workout_name}!",
                                     "status": "completed"
                                 }))
-                                
+                                print("Workout complete! Writing data to database...")
+                                buddy.write_data()
+
                                 
                                 print("Getting feedback from Ollama...")
                                 feedback_message = '1234'

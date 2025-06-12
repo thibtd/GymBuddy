@@ -15,6 +15,7 @@ import duckdb
 import json 
 from modules.workouts.workoutParent import Workout 
 from modules.feedbackAgent import FeedbackAgent
+import pandas as pd
 
 PoseLandmarkerResult = mp.tasks.vision.PoseLandmarkerResult
 
@@ -27,7 +28,7 @@ class GymBuddy:
         workout_name: str = "Push-ups",
         strictness_crit: str = "loose",
         input_type: str = "Video",
-        model_path: str = "models/pose_landmarker_lite.task",
+        model_path: str = "models/pose_landmarker_full.task",
 
     ):
         # set up the model
@@ -61,7 +62,7 @@ class GymBuddy:
 
         # Initialize buffers for logging and database
         self.log_buffer:list[Dict[str, Any]] = []
-        self.workout_db_buffer:list[Dict[str, Any]] = []
+        self.workout_db_buffer:Dict[str, Any] = {}
         self.wo_analysis_buffer:list[Dict[str, Any]] = []
 
         # Set up CSV logging
@@ -119,6 +120,7 @@ class GymBuddy:
         self.conn = duckdb.connect('data/gymBuddy_db.db')
         #create the tables in the db if they do not exist
         setup_database(self.conn)
+        
 
     def _close_duckdb(self)->None:
         """close the connection to the DuckDB database"""
@@ -127,67 +129,44 @@ class GymBuddy:
     def _get_duckdb_id(self)->int:
         id = self.conn.sql("SELECT id FROM workout ORDER BY id DESC LIMIT 1").fetchone()
         if id is not None:
-            return id[0]
+            return id[0]+1
         else:
             print("No workout entries found in the database.")
             return 0
 
-    def _save_data_to_duckdb(self,id:int)-> None:
+    def _save_data_to_duckdb(self)-> None:
         """Save frame analysis data to a DuckDB database"""
-        # if 1st frame, create a new workout entry
-        time = datetime.now()
-        if self.frame_count == 0:
-            try:
-                print(f"strict dev: {self.current_workout.get_strictness_deviation()}, strictness: {self.strictness}","workout name:", self.workout_name)
-                self.conn.sql("""
-                    INSERT INTO workout (workout_name, timestamp_start,rep_goal,
-                    strictness_crit,strictness_definition, left_side)
-                    VALUES (?,?,?,?,?,?) """,
-                    params=[self.workout_name,
-                        self.time,
-                        self.goal_reps,
-                        self.strictness,
-                        self.current_workout.get_strictness_deviation(),
-                        self.left_side])
-                results = self.conn.sql(""" select id from workout where timestamp_start = ? """, params=[self.time]).fetchone()
-                if results is not None:
-                    self._current_workout_db_id:int = results[0]
-                    print(f"New workout entry created with id {self._current_workout_db_id}.")
-                else:
-                    print("Error: No results found for the current workout.")
-                    return 
-            except Exception as e:
-                print(f"Error inserting new workout: {e}")
-                return
-            print(self.conn.sql(""" SELECT * FROM workout """))
-        #retrieve angles data from the current workout
-        angles = self.current_workout.get_display_angles()
-        print(f'angles data: {angles}')
-        for angle in angles:
-            angle['joint_indices'] = list(angle['joint_indices'])
-        angles_json = json.dumps(angles)
-        print(angles_json)
-
-        #retrieve the landmarks of interest from the current workout
-        ldmrks_of_interest = self.current_workout._get_indices()
-        print(f"landmarks of interest: {ldmrks_of_interest}")
-        ldmrks_keys = list(ldmrks_of_interest.keys())
-        ldmrks_values = list(ldmrks_of_interest.values())
-
-        self.conn.sql(""" INSERT INTO workout_analysis (workout_id, frame, timestamp, 
-                    rep_count,down, form_issues,angles_data,ldmrks_of_interest)
-                    VALUES (?,?,?,?,?,?,?,MAP(?, ?))""",
-                    params=[self._current_workout_db_id,
-                            self.frame_count,
-                            time,
-                            self.count_rep,
-                            self.current_workout.down,
-                            self.current_workout.fix_form,
-                            angles_json,
-                            ldmrks_keys,
-                            ldmrks_values])
+        try:
+            self.conn.sql("""
+                INSERT INTO workout (workout_name, timestamp_start,rep_goal,
+                strictness_crit,strictness_definition, left_side)
+                VALUES (?,?,?,?,?,?) """,
+                params=[self.workout_name,
+                    self.time,
+                    self.goal_reps,
+                    self.strictness,
+                    self.current_workout.get_strictness_deviation(),
+                    self.left_side])
+            results = self.conn.sql(""" select id from workout where timestamp_start = ? """, params=[self.time]).fetchone()
+            if results is not None:
+                self._current_workout_db_id:int = results[0]
+                print(f"New workout entry created with id {self._current_workout_db_id}.")
+            else:
+                print("Error: No results found for the current workout.")
+                return 
+        except Exception as e:
+            print(f"Error inserting new workout: {e}")
+            return
         
-        print(f"Data saved to DuckDB for frame {self.frame_count}.")
+        data_to_insert = pd.DataFrame(self.wo_analysis_buffer)
+        data_to_insert['ldmrks_of_interest']= data_to_insert.apply(lambda row:{'key': row['ldmrks_keys'], 'value': row['ldmrks_values']}, axis=1)
+        data_to_insert = data_to_insert.drop(columns=['ldmrks_keys', 'ldmrks_values'])
+        try:
+            self.conn.sql("INSERT INTO workout_analysis BY NAME SELECT * FROM data_to_insert")
+        except Exception as e:
+            print(f"Error inserting new workout: {e}")
+            return
+        print(f"Data saved to DuckDB for workout with id {self._current_workout_db_id}.")
         #print(self.conn.sql(""" SELECT * FROM workout_analysis """))
     
     
@@ -298,6 +277,7 @@ class GymBuddy:
             analysis_data["landmarks"] = [{"x": lm.x, "y": lm.y, "z": lm.z} for lm in res[0]]
             # Determine side on the first frame 
             if self.frame_count == 0:
+                self.current_workout_db_id = self._get_duckdb_id()
                 self.left_side = is_left_side(res)
                 print(f"left side: {self.left_side}")
                 #set current workout points to left side
@@ -305,6 +285,15 @@ class GymBuddy:
                 #update the indices of the current workout
                 self.current_workout.update_indices()
                 print(f'left side curr wo {self.current_workout.left_side}')
+                # save the workout data to the buffer 
+                self.workout_db_buffer = {
+                    "workout_name": self.workout_name,
+                    "timestamp_start": self.time,
+                    "rep_goal": self.goal_reps,
+                    "strictness_crit": self.strictness,
+                    "strictness_definition": self.current_workout.get_strictness_deviation(),
+                    "left_side": self.left_side
+                }
 
 
             # Count reps
@@ -323,7 +312,34 @@ class GymBuddy:
             analysis_data["form_message"] = self.current_workout.fix_form
             analysis_data["display_angles"] = self.current_workout.get_display_angles()
             analysis_data["is_down_phase"] = self.current_workout.down
-            
+
+            # add the analysis data to the buffer
+            #retrieve angles data from the current workout
+            angles = analysis_data["display_angles"].copy()
+            print(f'angles data: {angles}')
+            for angle in angles:
+                angle['joint_indices'] = list(angle['joint_indices'])
+            angles_json = json.dumps(angles)
+            print(angles_json)
+
+            #retrieve the landmarks of interest from the current workout
+            ldmrks_of_interest = self.current_workout._get_indices()
+            print(f"landmarks of interest: {ldmrks_of_interest}")
+            ldmrks_keys = list(ldmrks_of_interest.keys())
+            ldmrks_values = list(ldmrks_of_interest.values())
+
+            data_to_buffer = {
+                'workout_id': self.current_workout_db_id,
+                "frame": self.frame_count,
+                "timestamp": datetime.now(),
+                "rep_count": self.count_rep,
+                "down": self.current_workout.down,
+                "form_issues": self.current_workout.fix_form,
+                "angles_data": angles_json,
+                "ldmrks_keys": ldmrks_keys,
+                "ldmrks_values": ldmrks_values
+            }
+            self.wo_analysis_buffer.append(data_to_buffer)
            
 
             #increment frame count
@@ -331,10 +347,28 @@ class GymBuddy:
 
         return analysis_data
     
-    
-    
     def give_feedback(self):
         """ call to an Agent that will give feedback on the series that was done"""
         feedback:dict = self.feedback_agent.agent_pipeline()
         return feedback['formatted_feedback']
-        
+    
+    def write_data(self)->None:
+        """Write the data to the CSV file and database"""
+        if self.log_buffer:
+            self._save_landmarks_to_csv()
+
+        if self.wo_analysis_buffer:
+            print(f"Writing {len(self.wo_analysis_buffer)} frames of analysis data to DuckDB.")
+            #print(self.wo_analysis_buffer)
+            self._save_data_to_duckdb() 
+
+        # Clear the buffers after writing
+        self.log_buffer.clear()
+        self.wo_analysis_buffer.clear()
+        self.workout_db_buffer.clear()
+        print("Data written to CSV and DuckDB.")
+        self._close_duckdb()
+        print("DuckDB connection closed.")
+
+
+
