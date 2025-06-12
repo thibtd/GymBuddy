@@ -360,6 +360,7 @@ goButton?.addEventListener('click', () => {
     updateStatus("Workout started! Get into position...", "in_progress");
     previousRepCount = 0; // Reset rep count when starting a new workout
     workoutCompletedSoundPlayed = false; // Reset flag for new workout
+    completedSeries = false; // Reset completed series flag
 });
 
 

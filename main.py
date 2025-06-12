@@ -16,6 +16,7 @@ import datetime
 # Get the absolute path to the current file's directory
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
+
 app = FastAPI(
     title="GymBuddy API",
     description="AI-Powered Personal Trainer Backend",
@@ -129,9 +130,10 @@ async def camera_feed(websocket: WebSocket):
 
                                 
                                 print("Getting feedback from Ollama...")
-                                #feedback_message = '1234'
+                                
                                 time = datetime.datetime.now()
                                 try: 
+                                    #feedback_message = '1234'
                                     feedback_message = await asyncio.wait_for(asyncio.to_thread(buddy.give_feedback), timeout=180)
                                 except Exception as e:
                                     time_error= datetime.datetime.now()

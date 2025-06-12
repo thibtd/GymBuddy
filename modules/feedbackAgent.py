@@ -1,16 +1,20 @@
 import duckdb
 import json 
-import ollama 
+import langchain
+import os
 import pandas as pd 
 import numpy as np
 from scipy import signal 
 from datetime import datetime
 from typing import Dict, Any, List, Optional, Union, cast
-
+from dotenv import load_dotenv
+from langchain_core.messages import HumanMessage, SystemMessage
+from langchain_google_genai import ChatGoogleGenerativeAI
 
 class FeedbackAgent:
-    def __init__(self, db_conn:duckdb.DuckDBPyConnection,model:str='gemma3:1b',landmarks_folder:str = 'logs/',
+    def __init__(self, db_conn:duckdb.DuckDBPyConnection,model:str='gemini-2.0-flash',landmarks_folder:str = 'logs/',
                  landmarks_details_loc:str='data/landmarks_details.csv'):
+        
         self.model:str = model
         self.db_conn:duckdb.DuckDBPyConnection = db_conn
         self.landmarks_folder:str = landmarks_folder
@@ -22,31 +26,18 @@ class FeedbackAgent:
         self.landmarks:pd.DataFrame = pd.DataFrame()
         self.landmarks_details:pd.DataFrame = pd.DataFrame()
 
+        # Initialize the LLM model
+        
+        google_key = os.environ.get("GOOGLE_API_KEY")
+        print(f"Using Google API key: {google_key}")
+        self.llm = ChatGoogleGenerativeAI(model=self.model,google_api_key=google_key)
 
-
-    def model_available(self)->bool:
-        # check if the model is already loaded 
-        model_list = ollama.list()
-        available_models = [model['model']  for model in model_list.get('models', [])]
-        if self.model in available_models:
-            print(f"Model {self.model} is already loaded.")
-            return True
-        else:
-            print(f"Loading model {self.model}...")
-            # Load the model
-            try:
-                ollama.pull(self.model)
-                print(f"Model {self.model} loaded successfully.")
-                return True
-            except Exception as e:
-                print(f"Error loading model {self.model}: {e}")
-                return False
             
     def load_workout_data(self):
         """Load workout data from the database, landmarks details and tracking data.
         """
         print(self.db_conn.sql("SHOW ALL TABLES"))
-        # Load the datat from the database 
+        # Load the data from the database 
         self.workout_metadata = self.db_conn.sql(""" select * from workout """).df()
         self.workout_analysis = self.db_conn.sql(""" select * from workout_analysis """).df()
         # load landmarks details
@@ -334,29 +325,18 @@ class FeedbackAgent:
         
         🏋️‍♂️ **ACTIONABLE TIPS**
         """
-        
         try:
-            # 
-            self.model_available()
-            # Call the LLM
-            response = ollama.chat(
-                model='gemma3:1b',
-                messages=[
-                    {
-                        'role': 'system',
-                        'content': 'You are a professional fitness coach specializing in calisthenics and bodyweight exercises.'
-                    },
-                    {
-                        'role': 'user',
-                        'content': prompt
-                    }
-                ]
-            )
-            
-            # Extract the response content and standardize formatting
-            feedback_text = response['message']['content']
-            
-            # Create structured feedback dictionary
+            # Call the LLM using LangChain
+            messages = [
+                SystemMessage(content="You are a professional fitness coach specializing in calisthenics and bodyweight exercises."),
+                HumanMessage(content=prompt),
+            ]
+            response = self.llm.invoke(messages)
+
+            # Extract the response content
+            feedback_text = response.content
+
+            # ... (rest of your existing code to structure and return the feedback) ...
             feedback_dict = {
                 'workout_name': workout_name,
                 'reps_completed': reps_completed,
@@ -366,8 +346,6 @@ class FeedbackAgent:
                 'detailed_feedback': feedback_text,
                 'timestamp': datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             }
-            
-            # Return the structured feedback
             return feedback_dict
             
         except Exception as e:
@@ -418,14 +396,12 @@ class FeedbackAgent:
 
     def agent_pipeline(self)->Dict[str,Any]:
         """Main pipeline to extract data, generate feedback and format it"""
-        # make sure the model is available
-        if not self.model_available():
-            print("Model is not available.")
-            raise RuntimeError("Model is not available.")
-        
+
         # load the workout data
         self.load_workout_data()
         
+        print(self.workout_metadata)
+        print(self.workout_analysis)
         # Check if we have workout data
         if self.workout_metadata.empty or self.workout_analysis.empty:
             print("No workout data available.")
@@ -451,10 +427,11 @@ class FeedbackAgent:
 
 
 
-'''if __name__ == "__main__":
+if __name__ == "__main__":
     conn = duckdb.connect("data/gymBuddy_db.db")
-    model = 'gemma3:1b'
+    model = 'gemini-2.5-flash'  # or any other model you want to use
     feedback_agent = FeedbackAgent(conn)
+    
     
     try:
         feedback = feedback_agent.agent_pipeline()
@@ -468,4 +445,4 @@ class FeedbackAgent:
     finally:
         # Close the database connection
         if conn is not None:
-            conn.close()'''
+            conn.close()
