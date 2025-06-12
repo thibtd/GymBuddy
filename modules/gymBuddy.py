@@ -367,7 +367,7 @@ class GymBuddy:
         self.wo_analysis_buffer.clear()
         self.workout_db_buffer.clear()
         print("Data written to CSV and DuckDB.")
-        self._close_duckdb()
+        #self._close_duckdb()
         print("DuckDB connection closed.")
 
 

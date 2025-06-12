@@ -11,6 +11,8 @@ import numpy as np
 import os
 from apis.mobile_api import mobile_router
 
+import datetime
+
 # Get the absolute path to the current file's directory
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
@@ -47,7 +49,7 @@ async def get(request: Request):
 @app.websocket("/ws")
 async def camera_feed(websocket: WebSocket):
     await websocket.accept()
-    print('piute')
+    
     print("WebSocket connected successfully")
     
     start_detection = False
@@ -81,7 +83,7 @@ async def camera_feed(websocket: WebSocket):
                         }))
                         
                     if data.get("type") == "reps":
-                        
+
                         reps = int(data.get("value", 1))
                         print(f"Setting target reps to {reps}")
                         buddy.set_reps(reps)
@@ -127,8 +129,15 @@ async def camera_feed(websocket: WebSocket):
 
                                 
                                 print("Getting feedback from Ollama...")
-                                feedback_message = '1234'
-                                #feedback_message = await asyncio.to_thread(buddy.give_feedback)
+                                #feedback_message = '1234'
+                                time = datetime.datetime.now()
+                                try: 
+                                    feedback_message = await asyncio.wait_for(asyncio.to_thread(buddy.give_feedback), timeout=180)
+                                except Exception as e:
+                                    time_error= datetime.datetime.now()
+                                    print(f"Error getting feedback: {e}")
+                                    print(f"Time of error: {time_error-time} is timeout")
+                                    feedback_message = "Error getting feedback. Please try again later."
 
                                 print(f"Feedback received: {feedback_message}")
                                 await websocket.send_text(json.dumps({
@@ -172,4 +181,5 @@ async def camera_feed(websocket: WebSocket):
     except Exception as e:
         print(f"WebSocket error: {e}")
     finally:
+        buddy._close_duckdb()
         print("WebSocket connection closed")

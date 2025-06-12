@@ -451,7 +451,7 @@ class FeedbackAgent:
 
 
 
-if __name__ == "__main__":
+'''if __name__ == "__main__":
     conn = duckdb.connect("data/gymBuddy_db.db")
     model = 'gemma3:1b'
     feedback_agent = FeedbackAgent(conn)
@@ -468,4 +468,4 @@ if __name__ == "__main__":
     finally:
         # Close the database connection
         if conn is not None:
-            conn.close()
+            conn.close()'''
