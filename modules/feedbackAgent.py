@@ -12,12 +12,11 @@ from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_google_genai import ChatGoogleGenerativeAI
 
 class FeedbackAgent:
-    def __init__(self, db_conn:duckdb.DuckDBPyConnection,model:str='gemini-2.0-flash',landmarks_folder:str = 'logs/',
+    def __init__(self, db_conn:duckdb.DuckDBPyConnection,model:str='gemini-2.0-flash',
                  landmarks_details_loc:str='data/landmarks_details.csv'):
         
         self.model:str = model
         self.db_conn:duckdb.DuckDBPyConnection = db_conn
-        self.landmarks_folder:str = landmarks_folder
         self.landmarks_details_loc:str = landmarks_details_loc
 
         # dataset
@@ -29,7 +28,7 @@ class FeedbackAgent:
         # Initialize the LLM model
         
         google_key = os.environ.get("GOOGLE_API_KEY")
-        print(f"Using Google API key: {google_key}")
+        
         self.llm = ChatGoogleGenerativeAI(model=self.model,google_api_key=google_key)
 
             
@@ -38,52 +37,22 @@ class FeedbackAgent:
         """
         print(self.db_conn.sql("SHOW ALL TABLES"))
         # Load the data from the database 
-        self.workout_metadata = self.db_conn.sql(""" select * from workout """).df()
-        self.workout_analysis = self.db_conn.sql(""" select * from workout_analysis """).df()
-        # load landmarks details
-        self.landmarks_details = pd.read_csv(self.landmarks_details_loc)
-        
+        try:
+            self.workout_metadata = self.db_conn.sql(""" select * from workout """).df()
+            self.workout_analysis = self.db_conn.sql(""" select * from workout_analysis """).df()
+            self.landmarks_details = self.db_conn.sql(""" select * from raw_landmarks """).df()
+        except Exception as e:
+            print(f"Error loading workout data: {e}")
+            raise e
         #last workout id 
         last_workout_id = self.workout_metadata['ID'].max()
 
         # keep only the last workout
         self.workout_metadata = self.workout_metadata.loc[self.workout_metadata['ID'] == last_workout_id]
         self.workout_analysis = self.workout_analysis.loc[self.workout_analysis['workout_id'] == last_workout_id]
-
-        # load landmarks logs, i.e. the tracking data
-        if not self.workout_metadata.empty and 'ID' in self.workout_metadata.columns:
-            last_workout_id = self.workout_metadata['ID'].max()
-            filtered_workout = self.workout_metadata[self.workout_metadata['ID'] == last_workout_id]
-            
-            if not filtered_workout.empty and 'timestamp_start' in filtered_workout.columns:
-                timestamp_value = filtered_workout['timestamp_start'].iloc[0]
-                time_start = pd.Timestamp(timestamp_value).strftime('%Y%m%d_%H%M')
-                
-                if 'workout_name' in filtered_workout.columns:
-                    workout_name = filtered_workout['workout_name'].iloc[0]
-                    landmarks_file = f"{self.landmarks_folder}pose_data_{workout_name}_{time_start}.csv"
-                    
-                    try:
-                        self.landmarks = pd.read_csv(landmarks_file)
-                        print(f"Landmarks data loaded from {landmarks_file}.")
-                    except FileNotFoundError:
-                        print(f"Landmarks file {landmarks_file} not found.")
-                        # Create empty DataFrame instead of None to maintain type consistency
-                        self.landmarks = pd.DataFrame()
-                else:
-                    print("Missing workout name in data.")
-                    self.landmarks = pd.DataFrame()
-            else:
-                print("No timestamp data available.")
-                self.landmarks = pd.DataFrame()
-        else:
-            print("No workout data available.")
-            self.landmarks = pd.DataFrame()
-    
+        self.landmarks_details = self.landmarks_details.loc[self.landmarks_details['workout_id'] == last_workout_id]
         
 
-
-        
     def extract_workout_data(self)->Dict[str, Any]:
         """Extract detailed metrics from the combined data"""
 

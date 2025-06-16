@@ -5,11 +5,13 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from fastapi.middleware.cors import CORSMiddleware
 import asyncio
-import cv2
+import duckdb
 from modules.gymBuddy import GymBuddy
 import numpy as np
 import os
-from apis.mobile_api import mobile_router
+from typing import Dict, Any
+from modules.db_setup import connect_in_memory_db, close_db_connection, save_data_to_db
+from modules.feedbackAgent import FeedbackAgent
 
 import datetime
 
@@ -33,8 +35,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Include mobile API router
-app.include_router(mobile_router)
 
 # Mount static files
 app.mount("/static", StaticFiles(directory=os.path.join(BASE_DIR, "static")), name="static")
@@ -42,7 +42,7 @@ app.mount("/static", StaticFiles(directory=os.path.join(BASE_DIR, "static")), na
 # Set up Jinja2 templates
 templates = Jinja2Templates(directory=os.path.join(BASE_DIR, "templates"))
 
-@app.get("/")
+@app.get("/",response_class=HTMLResponse)
 async def get(request: Request):
     return templates.TemplateResponse("index.html", {"request": request})
 
@@ -53,16 +53,19 @@ async def camera_feed(websocket: WebSocket):
     
     print("WebSocket connected successfully")
     
-    start_detection = False
-    wo_names = []
-    wo_reps = []
-    last_history_sent = ""
-    remaining_reps = np.infty
-    
+    start_detection:bool = False
+    wo_names:list = []
+    wo_reps:list = []
+    last_history_sent:str = ""
+
+    # Initialize in-memory DuckDB database
+    db_conn : duckdb.DuckDBPyConnection = connect_in_memory_db()
     # Initialize GymBuddy
-    buddy = GymBuddy(None)
+    buddy:GymBuddy = GymBuddy()
+    feedback_agent:FeedbackAgent = FeedbackAgent(db_conn=db_conn)
     
     try:
+       
         while True:
             try:
 
@@ -101,7 +104,6 @@ async def camera_feed(websocket: WebSocket):
                     if data.get("type") == "start":
                         start_detection = True
                         buddy.count_rep = 0
-                        buddy.workout_completed = False  # Reset workout completion statu
                         print("Starting detection!")
                         
                 
@@ -118,7 +120,8 @@ async def camera_feed(websocket: WebSocket):
                            
                             # Check if workout completed 
                             if buddy.count_rep >= buddy.goal_reps and buddy.goal_reps>0:
-                                buddy.workout_completed = True  # Flag to prevent multiple completions
+                                
+                                start_detection = False
                                 
                                 await websocket.send_text(json.dumps({
                                     "type": "data",
@@ -126,29 +129,54 @@ async def camera_feed(websocket: WebSocket):
                                     "status": "completed"
                                 }))
                                 print("Workout complete! Writing data to database...")
-                                buddy.write_data()
+                                data_to_save:dict[str,Any] = buddy.get_data_to_save()
+                                buddy.reset_data_buffers()  # Reset buffers after saving
 
-                                
-                                print("Getting feedback from Ollama...")
-                                
-                                time = datetime.datetime.now()
-                                try: 
-                                    #feedback_message = '1234'
-                                    feedback_message = await asyncio.wait_for(asyncio.to_thread(buddy.give_feedback), timeout=180)
-                                except Exception as e:
-                                    time_error= datetime.datetime.now()
-                                    print(f"Error getting feedback: {e}")
-                                    print(f"Time of error: {time_error-time} is timeout")
-                                    feedback_message = "Error getting feedback. Please try again later."
+                                #print('metadata:')
+                                #print(data_to_save['workout_db_buffer'])
+                                #print('analysis_data:')
+                                #print(data_to_save['wo_analysis_buffer'])
+                                print('raw_landmarks:')
+                                print(data_to_save['raw_landmarks_buffer'])
+                                # Save data to DuckDB
+                                saved = save_data_to_db(db_conn, metadata=data_to_save['workout_db_buffer'],
+                                                        analysis_data=data_to_save['wo_analysis_buffer'],
+                                                        raw_landmarks=data_to_save['raw_landmarks_buffer'])
+                                if saved:
+                                    print("Getting feedback from Ollama...")
+                                    
 
-                                print(f"Feedback received: {feedback_message}")
-                                await websocket.send_text(json.dumps({
-                                    "type": "feedback",
-                                    "message": feedback_message,
-                                }))
-                                wo_names.append(buddy.workout_name)
-                                wo_reps.append(buddy.count_rep)
-                                start_detection = False
+                                    time = datetime.datetime.now()
+                                    try: 
+                                        #feedback_message = '1234'
+                                        feedback = await asyncio.wait_for(asyncio.to_thread(feedback_agent.agent_pipeline), timeout=180)
+                                        print(f"Feedback received: {feedback}")
+                                        feedback_message = feedback['formatted_feedback']
+                                    except Exception as e:
+                                        time_error= datetime.datetime.now()
+                                        print(f"Error getting feedback: {e}")
+                                        print(f"Time of error: {time_error-time} is timeout")
+                                        feedback_message = "Error getting feedback. Please try again later."
+
+                                    print(f"Feedback received: {feedback_message}")
+                                    await websocket.send_text(json.dumps({
+                                        "type": "feedback",
+                                        "message": feedback_message,
+                                    }))
+                                    # save in memory database to db file
+                                    
+                                    db_conn.sql(""" ATTACH 'workout_db.db';
+                                            COPY FROM DATABASE memory TO workout_db;
+                                            DETACH workout_db;""")
+                                    wo_names.append(buddy.workout_name)
+                                    wo_reps.append(buddy.count_rep)
+                                else:
+                                    print("Failed to save data to database.")
+                                    await websocket.send_text(json.dumps({
+                                        "type": "error",
+                                        "message": "Failed to save workout data. Please try again."
+                                    }))
+                                
                             else:
                                 # Send current rep count and analysis data
                                 await websocket.send_text(json.dumps({
@@ -183,5 +211,5 @@ async def camera_feed(websocket: WebSocket):
     except Exception as e:
         print(f"WebSocket error: {e}")
     finally:
-        buddy._close_duckdb()
+        close_db_connection(conn=db_conn)
         print("WebSocket connection closed")

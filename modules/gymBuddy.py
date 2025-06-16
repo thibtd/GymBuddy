@@ -4,9 +4,7 @@ import csv
 import os
 from datetime import datetime
 import numpy as np
-from mediapipe import solutions
-from mediapipe.framework.formats import landmark_pb2
-from modules.utils import is_left_side,draw_angle_arc
+from modules.utils import is_left_side
 from modules.workouts.pushups import PushUps
 from modules.workouts.squats import Squats
 from modules.db_setup import setup_database
@@ -24,7 +22,6 @@ class GymBuddy:
 
     def __init__(
         self,
-        source,
         workout_name: str = "Push-ups",
         strictness_crit: str = "loose",
         input_type: str = "Video",
@@ -37,8 +34,6 @@ class GymBuddy:
         self.model = self.create_model()
 
         # set up the camera
-        #self.cap = cv2.VideoCapture(source)
-        #assert self.cap.isOpened(), "Error: Could not open the camera."
         self.frame_timestamp:float = 0
         self.frame_count:int = 0
 
@@ -54,122 +49,17 @@ class GymBuddy:
 
         # set current workout
         self.current_workout:Workout = self.create_workout(self.workout_name)
-        self.workout_completed:bool = False
-        self.last_status_time:float = 0
+        
 
         #set time for start of workout
         self.time:datetime = datetime.now()
 
         # Initialize buffers for logging and database
-        self.log_buffer:list[Dict[str, Any]] = []
         self.workout_db_buffer:Dict[str, Any] = {}
         self.wo_analysis_buffer:list[Dict[str, Any]] = []
+        self.raw_landmarks_buffer:list[Dict[str, Any]] = []
 
-        # Set up CSV logging
-        self._setup_csv_logging()
-
-        # Set up DuckDB
-        self._setup_duckdb()
-
-        self.feedback_agent:FeedbackAgent = FeedbackAgent(self.conn) 
-
-
-    def _setup_csv_logging(self)-> None:
-        """Setup CSV file for logging pose landmarks"""
-        # Create logs directory if it doesn't exist
-        os.makedirs('logs', exist_ok=True)
-        
-        # Generate filename with timestamp and workout name
-        timestamp = self.time.strftime("%Y%m%d_%H%M")
-        self.csv_filename = f"logs/pose_data_{self.workout_name}_{timestamp}.csv"
-        
-        # Create and write header to CSV file
-        with open(self.csv_filename, 'w', newline='') as csvfile:
-            fieldnames = ['frame', 'timestamp','workout_id']
-            # Add fields for all 33 landmarks (x, y, z for each)
-            for i in range(33):
-                fieldnames.extend([f'landmark{i}_x', f'landmark{i}_y', f'landmark{i}_z'])
-            
-            writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
-            writer.writeheader()
-    
-    def _save_landmarks_to_csv(self)-> None:
-        """Save current landmarks to CSV file"""
-        if self.POSE_LANDMARK_RESULT is None or not self.POSE_LANDMARK_RESULT.pose_landmarks:
-            return
-        
-        with open(self.csv_filename, 'a', newline='') as csvfile:
-            writer = csv.writer(csvfile)
-            time = datetime.now()
-            # Start with frame number and timestamp
-            row_data = [self.frame_count,time, self._current_workout_db_id]
-            
-            # For the first detected pose (assuming there's at least one)
-            landmarks = self.POSE_LANDMARK_RESULT.pose_landmarks[0]
-            
-            # Add all landmark coordinates
-            for landmark in landmarks:
-                row_data.extend([landmark.x, landmark.y, landmark.z])
-            
-            # Write the row
-            writer.writerow(row_data)
-
-    def _setup_duckdb(self)-> None:
-        """Setup DuckDB database for the analysed data"""
-        # Create a DuckDB database connection
-        self.conn = duckdb.connect('data/gymBuddy_db.db')
-        #create the tables in the db if they do not exist
-        setup_database(self.conn)
-        
-
-    def _close_duckdb(self)->None:
-        """close the connection to the DuckDB database"""
-        self.conn.close() 
-
-    def _get_duckdb_id(self)->int:
-        id = self.conn.sql("SELECT id FROM workout ORDER BY id DESC LIMIT 1").fetchone()
-        if id is not None:
-            return id[0]+1
-        else:
-            print("No workout entries found in the database.")
-            return 0
-
-    def _save_data_to_duckdb(self)-> None:
-        """Save frame analysis data to a DuckDB database"""
-        try:
-            self.conn.sql("""
-                INSERT INTO workout (workout_name, timestamp_start,rep_goal,
-                strictness_crit,strictness_definition, left_side)
-                VALUES (?,?,?,?,?,?) """,
-                params=[self.workout_name,
-                    self.time,
-                    self.goal_reps,
-                    self.strictness,
-                    self.current_workout.get_strictness_deviation(),
-                    self.left_side])
-            results = self.conn.sql(""" select id from workout where timestamp_start = ? """, params=[self.time]).fetchone()
-            if results is not None:
-                self._current_workout_db_id:int = results[0]
-                print(f"New workout entry created with id {self._current_workout_db_id}.")
-            else:
-                print("Error: No results found for the current workout.")
-                return 
-        except Exception as e:
-            print(f"Error inserting new workout: {e}")
-            return
-        
-        data_to_insert = pd.DataFrame(self.wo_analysis_buffer)
-        data_to_insert['ldmrks_of_interest']= data_to_insert.apply(lambda row:{'key': row['ldmrks_keys'], 'value': row['ldmrks_values']}, axis=1)
-        data_to_insert = data_to_insert.drop(columns=['ldmrks_keys', 'ldmrks_values'])
-        try:
-            self.conn.sql("INSERT INTO workout_analysis BY NAME SELECT * FROM data_to_insert")
-        except Exception as e:
-            print(f"Error inserting new workout: {e}")
-            return
-        print(f"Data saved to DuckDB for workout with id {self._current_workout_db_id}.")
-        #print(self.conn.sql(""" SELECT * FROM workout_analysis """))
-    
-    
+         
     def create_workout(self, workout_name: str) -> Workout:
         workouts = {"push-ups": PushUps, "abs": None, "squats": Squats}
         return workouts[workout_name](
@@ -242,7 +132,6 @@ class GymBuddy:
         frame = frame.copy()
         height, width, _ = frame.shape
         frame = cv2.resize(frame, (720, int(720 * height / width))) # Maintain aspect ratio
-        h, w, _ = frame.shape # Get new dimensions for coordinate conversion
         
         mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=frame)
 
@@ -274,10 +163,10 @@ class GymBuddy:
 
             
             res = self.POSE_LANDMARK_RESULT.pose_landmarks
-            analysis_data["landmarks"] = [{"x": lm.x, "y": lm.y, "z": lm.z} for lm in res[0]]
+            analysis_data["landmarks"] = [{"x": lm.x, "y": lm.y} for lm in res[0]]
+            
             # Determine side on the first frame 
             if self.frame_count == 0:
-                self.current_workout_db_id = self._get_duckdb_id()
                 self.left_side = is_left_side(res)
                 print(f"left side: {self.left_side}")
                 #set current workout points to left side
@@ -329,7 +218,6 @@ class GymBuddy:
             ldmrks_values = list(ldmrks_of_interest.values())
 
             data_to_buffer = {
-                'workout_id': self.current_workout_db_id,
                 "frame": self.frame_count,
                 "timestamp": datetime.now(),
                 "rep_count": self.count_rep,
@@ -340,6 +228,14 @@ class GymBuddy:
                 "ldmrks_values": ldmrks_values
             }
             self.wo_analysis_buffer.append(data_to_buffer)
+
+            # add landmarks to the landmarks buffer
+            raw_landmarks = {
+                "frame": self.frame_count,
+                "timestamp": datetime.now(),
+                "landmarks": analysis_data["landmarks"],
+            }
+            self.raw_landmarks_buffer.append(raw_landmarks)
            
 
             #increment frame count
@@ -347,28 +243,23 @@ class GymBuddy:
 
         return analysis_data
     
-    def give_feedback(self):
+    '''def give_feedback(self):
         """ call to an Agent that will give feedback on the series that was done"""
         feedback:dict = self.feedback_agent.agent_pipeline()
-        return feedback['formatted_feedback']
-    
-    def write_data(self)->None:
-        """Write the data to the CSV file and database"""
-        if self.log_buffer:
-            self._save_landmarks_to_csv()
+        return feedback['formatted_feedback']'''
 
-        if self.wo_analysis_buffer:
-            print(f"Writing {len(self.wo_analysis_buffer)} frames of analysis data to DuckDB.")
-            #print(self.wo_analysis_buffer)
-            self._save_data_to_duckdb() 
+    def get_data_to_save(self) -> Dict[str, Any]:
+        """Get the data to save to the database"""
+        data_to_save = {
+            "workout_db_buffer": self.workout_db_buffer.copy(),
+            "wo_analysis_buffer": self.wo_analysis_buffer.copy(),
+            "raw_landmarks_buffer": self.raw_landmarks_buffer.copy()
+        }
+        return data_to_save
 
-        # Clear the buffers after writing
-        self.log_buffer.clear()
-        self.wo_analysis_buffer.clear()
+    def reset_data_buffers(self) -> None:
+        """Reset the data buffers after saving"""
         self.workout_db_buffer.clear()
-        print("Data written to CSV and DuckDB.")
-        #self._close_duckdb()
-        print("DuckDB connection closed.")
-
-
-
+        self.wo_analysis_buffer.clear()
+        self.raw_landmarks_buffer.clear()
+        print("Data buffers reset.")
