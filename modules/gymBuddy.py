@@ -174,6 +174,11 @@ class GymBuddy:
                 #update the indices of the current workout
                 self.current_workout.update_indices()
                 print(f'left side curr wo {self.current_workout.left_side}')
+                 #retrieve the landmarks of interest from the current workout
+                ldmrks_of_interest = self.current_workout._get_indices()
+                print(f"landmarks of interest: {ldmrks_of_interest}")
+                ldmrks_keys = list(ldmrks_of_interest.keys())
+                ldmrks_values = list(ldmrks_of_interest.values())
                 # save the workout data to the buffer 
                 self.workout_db_buffer = {
                     "workout_name": self.workout_name,
@@ -181,7 +186,9 @@ class GymBuddy:
                     "rep_goal": self.goal_reps,
                     "strictness_crit": self.strictness,
                     "strictness_definition": self.current_workout.get_strictness_deviation(),
-                    "left_side": self.left_side
+                    "left_side": self.left_side,
+                    "ldmrks_keys": ldmrks_keys,
+                    "ldmrks_values": ldmrks_values
                 }
 
 
@@ -211,11 +218,7 @@ class GymBuddy:
             angles_json = json.dumps(angles)
             print(angles_json)
 
-            #retrieve the landmarks of interest from the current workout
-            ldmrks_of_interest = self.current_workout._get_indices()
-            print(f"landmarks of interest: {ldmrks_of_interest}")
-            ldmrks_keys = list(ldmrks_of_interest.keys())
-            ldmrks_values = list(ldmrks_of_interest.values())
+           
 
             data_to_buffer = {
                 "frame": self.frame_count,
@@ -223,9 +226,7 @@ class GymBuddy:
                 "rep_count": self.count_rep,
                 "down": self.current_workout.down,
                 "form_issues": self.current_workout.fix_form,
-                "angles_data": angles_json,
-                "ldmrks_keys": ldmrks_keys,
-                "ldmrks_values": ldmrks_values
+                "angles_data": angles_json
             }
             self.wo_analysis_buffer.append(data_to_buffer)
 
@@ -262,4 +263,5 @@ class GymBuddy:
         self.workout_db_buffer.clear()
         self.wo_analysis_buffer.clear()
         self.raw_landmarks_buffer.clear()
+        self.frame_count = 0
         print("Data buffers reset.")

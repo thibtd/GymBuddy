@@ -85,7 +85,7 @@ class PushUps(Workout):
         if not knees_up:
             form_issues.append("knees on floor")
         if not body_aligned:
-            form_issues.append(f"body not straight (angle: {self.angles['body']:.1f} degrees)")
+            form_issues.append("body not straight")
         
         # Set form feedback
 
@@ -94,7 +94,7 @@ class PushUps(Workout):
             return False
         
         else:
-            self.fix_form = f"Good form! (angle: {self.angles['body']:.1f}degrees)"
+            self.fix_form = "Good form"
             return True
         
     def get_display_angles(self) -> List[Dict[str, Any]]:

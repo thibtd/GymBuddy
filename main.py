@@ -135,9 +135,7 @@ async def camera_feed(websocket: WebSocket):
                                 #print('metadata:')
                                 #print(data_to_save['workout_db_buffer'])
                                 #print('analysis_data:')
-                                #print(data_to_save['wo_analysis_buffer'])
-                                print('raw_landmarks:')
-                                print(data_to_save['raw_landmarks_buffer'])
+                                #print(data_to_save['wo_analysis_buffer']
                                 # Save data to DuckDB
                                 saved = save_data_to_db(db_conn, metadata=data_to_save['workout_db_buffer'],
                                                         analysis_data=data_to_save['wo_analysis_buffer'],
@@ -150,7 +148,7 @@ async def camera_feed(websocket: WebSocket):
                                     try: 
                                         #feedback_message = '1234'
                                         feedback = await asyncio.wait_for(asyncio.to_thread(feedback_agent.agent_pipeline), timeout=180)
-                                        print(f"Feedback received: {feedback}")
+                                        
                                         feedback_message = feedback['formatted_feedback']
                                     except Exception as e:
                                         time_error= datetime.datetime.now()
@@ -165,9 +163,7 @@ async def camera_feed(websocket: WebSocket):
                                     }))
                                     # save in memory database to db file
                                     
-                                    db_conn.sql(""" ATTACH 'workout_db.db';
-                                            COPY FROM DATABASE memory TO workout_db;
-                                            DETACH workout_db;""")
+                                    
                                     wo_names.append(buddy.workout_name)
                                     wo_reps.append(buddy.count_rep)
                                 else:

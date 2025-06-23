@@ -11,7 +11,8 @@ def connect_in_memory_db()-> duckdb.DuckDBPyConnection:
     Returns:
         duckdb.DuckDBPyConnection: A connection object to the in-memory database.
     """
-    conn = duckdb.connect(database=':memory:')
+    #conn = duckdb.connect(database=':memory:')
+    conn = duckdb.connect(database='data/workout_db.db', read_only=False)
     setup_database(conn)
     return conn
 
@@ -35,7 +36,8 @@ def setup_database(conn:duckdb.DuckDBPyConnection)->None:
             rep_goal INTEGER not null,
             strictness_crit VARCHAR(16) not null,
             strictness_definition DOUBLE not null,
-            left_side BOOLEAN not null
+            left_side BOOLEAN not null,
+            ldmrks_of_interest MAP(VARCHAR,INTEGER) not null,
              )
             """)
     # Create a table for the workout analysis. 
@@ -53,7 +55,6 @@ def setup_database(conn:duckdb.DuckDBPyConnection)->None:
             down BOOLEAN not null,
             form_issues VARCHAR not null,
             angles_data STRUCT(name VARCHAR, value DOUBLE, joint_indices INT[])[] not null,
-            ldmrks_of_interest MAP(VARCHAR,INTEGER) not null,
             primary key (workout_id, timestamp),
             FOREIGN KEY (workout_id) REFERENCES workout(ID))
             """)
@@ -71,17 +72,21 @@ def write_workout_metadata(conn:duckdb.DuckDBPyConnection, metadata:dict)->int:
     Returns:
         int: The id of the newly inserted workout entry, or 0 if the insertion failed.
     """
+
     try:
         conn.sql("""
             INSERT INTO workout (workout_name, timestamp_start,rep_goal,
-            strictness_crit,strictness_definition, left_side)
-            VALUES (?,?,?,?,?,?) """,
+            strictness_crit,strictness_definition, left_side,ldmrks_of_interest)
+            VALUES (?,?,?,?,?,?,MAP(?,?)) """,
             params=[metadata["workout_name"],
                     metadata["timestamp_start"],
                     metadata['rep_goal'],
                     metadata['strictness_crit'],
                     metadata['strictness_definition'],
-                    metadata['left_side']])
+                    metadata['left_side'],
+                    metadata['ldmrks_values'],
+                    metadata['ldmrks_keys']
+                    ])
         # Get the last inserted id
         last_id = conn.sql("SELECT max(id) from workout").fetchone()
         if last_id is not None:
@@ -107,8 +112,7 @@ def write_workout_analysis(conn:duckdb.DuckDBPyConnection, analysis_data:list[di
     """
     data_to_insert = pd.DataFrame(analysis_data)
     data_to_insert['workout_id'] = workout_id
-    data_to_insert['ldmrks_of_interest']= data_to_insert.apply(lambda row:{'key': row['ldmrks_keys'], 'value': row['ldmrks_values']}, axis=1)
-    data_to_insert = data_to_insert.drop(columns=['ldmrks_keys', 'ldmrks_values'])
+    
     try:
         conn.sql("INSERT INTO workout_analysis BY NAME SELECT * FROM data_to_insert")
     except Exception as e:
@@ -126,7 +130,6 @@ def write_raw_landmarks(conn:duckdb.DuckDBPyConnection, raw_landmarks:list[dict[
     columns =[]
     for i in range(33):
         columns.extend([f'landmark_{i}_x', f'landmark_{i}_y'])
-
     raw_landmarks_df = pd.DataFrame(raw_landmarks)
     raw_landmarks_df['workout_id'] = workout_id
     landmarks= raw_landmarks_df['landmarks'].apply(lambda x: extend_row(x))
@@ -134,7 +137,7 @@ def write_raw_landmarks(conn:duckdb.DuckDBPyConnection, raw_landmarks:list[dict[
     landmarks_processed = pd.concat([raw_landmarks_df, landmarks_df], axis=1)
     landmarks_processed.drop(columns=['landmarks'], inplace=True)
     try:
-        conn.sql("CREATE TABLE raw_landmarks AS SELECT * FROM landmarks_processed")
+        conn.sql("CREATE TABLE IF NOT EXISTS raw_landmarks AS SELECT * FROM landmarks_processed")
     except Exception as e:
         print(f"Error inserting raw landmarks: {e}")
         return
@@ -152,7 +155,7 @@ def save_data_to_db(conn:duckdb.DuckDBPyConnection, metadata:dict, analysis_data
     """
     print("Saving data to DuckDB...")
     workout_id = write_workout_metadata(conn, metadata)
-    print(f"saved meatdata")
+    print(f"saved meatdata for workout id {workout_id}")
     if workout_id == 0:
         print("Failed to insert workout metadata. Aborting data save.")
         return False
