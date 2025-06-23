@@ -141,7 +141,7 @@ async def camera_feed(websocket: WebSocket):
                                                         analysis_data=data_to_save['wo_analysis_buffer'],
                                                         raw_landmarks=data_to_save['raw_landmarks_buffer'])
                                 if saved:
-                                    print("Getting feedback from Ollama...")
+                                    print("Getting feedback...")
                                     
 
                                     time = datetime.datetime.now()

@@ -37,7 +37,7 @@ def setup_database(conn:duckdb.DuckDBPyConnection)->None:
             strictness_crit VARCHAR(16) not null,
             strictness_definition DOUBLE not null,
             left_side BOOLEAN not null,
-            ldmrks_of_interest MAP(VARCHAR,INTEGER) not null,
+            ldmrks_of_interest MAP(INTEGER,VARCHAR) not null,
              )
             """)
     # Create a table for the workout analysis. 
