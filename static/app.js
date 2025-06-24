@@ -178,20 +178,58 @@ async function initCamera() {
     }
 }
 
+function resizeAndPad(videoElement, targetSize = 256) {
+    const canvas = document.createElement('canvas');
+    canvas.width = targetSize;
+    canvas.height = targetSize;
+    const ctx = canvas.getContext('2d');
+
+    // Fill the canvas with a black background
+    ctx.fillStyle = 'black';
+    ctx.fillRect(0, 0, targetSize, targetSize);
+
+    // Calculate new dimensions while maintaining aspect ratio
+    const videoWidth = videoElement.videoWidth;
+    const videoHeight = videoElement.videoHeight;
+    let newWidth, newHeight, xOffset, yOffset;
+
+    if (videoHeight > videoWidth) {
+        newHeight = targetSize;
+        newWidth = Math.floor(videoWidth * (targetSize / videoHeight));
+        xOffset = Math.floor((targetSize - newWidth) / 2);
+        yOffset = 0;
+    } else {
+        newWidth = targetSize;
+        newHeight = Math.floor(videoHeight * (targetSize / videoWidth));
+        xOffset = 0;
+        yOffset = Math.floor((targetSize - newHeight) / 2);
+    }
+
+    // Draw the resized video frame onto the padded canvas
+    ctx.drawImage(videoElement, xOffset, yOffset, newWidth, newHeight);
+    
+    return canvas;
+}
+
+
 function captureAndSendFrame() {
     if (!videoElement || !isCapturing || ws.readyState !== WebSocket.OPEN) return;
 
-    const tempCanvas = document.createElement('canvas');
+   /* const tempCanvas = document.createElement('canvas');
     tempCanvas.width = videoElement.videoWidth;
     tempCanvas.height = videoElement.videoHeight;
     const tempCtx = tempCanvas.getContext('2d');
-    tempCtx.drawImage(videoElement, 0, 0);
+    tempCtx.drawImage(videoElement, 0, 0);*/
 
-    tempCanvas.toBlob((blob) => {
-        if (blob) {
-            blob.arrayBuffer().then(buffer => ws.send(buffer));
-        }
-    }, 'image/jpeg', 0.8);
+    console.log(`Before resize: ${videoElement.videoWidth}x${videoElement.videoHeight}`);
+    const processedCanvas = resizeAndPad(videoElement, 256);
+    console.log(`After resize: ${processedCanvas.width}x${processedCanvas.height}`);
+    //tempCanvas.toBlob((blob) => {
+    processedCanvas.toBlob((blob) => {
+    if (blob) {
+        blob.arrayBuffer().then(buffer => ws.send(buffer));
+    }
+}, 'image/jpeg', 0.8);
 }
 
 

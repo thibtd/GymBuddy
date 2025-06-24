@@ -1,19 +1,16 @@
 import mediapipe as mp
 import cv2
-import csv 
-import os
+
 from datetime import datetime
 import numpy as np
 from modules.utils import is_left_side
 from modules.workouts.pushups import PushUps
 from modules.workouts.squats import Squats
-from modules.db_setup import setup_database
 from typing import Dict, Any
-import duckdb
 import json 
 from modules.workouts.workoutParent import Workout 
-from modules.feedbackAgent import FeedbackAgent
-import pandas as pd
+import pyinstrument
+
 
 PoseLandmarkerResult = mp.tasks.vision.PoseLandmarkerResult
 
@@ -120,6 +117,7 @@ class GymBuddy:
             print(f"Error processing frame from bytes: {e}")
             return None
     
+    #@pyinstrument.profile()
     def detect_from_frame(self, frame) -> dict:
         """Process a single frame for exercise detection"""
         if frame is None:
@@ -131,7 +129,9 @@ class GymBuddy:
     
         frame = frame.copy()
         height, width, _ = frame.shape
-        frame = cv2.resize(frame, (720, int(720 * height / width))) # Maintain aspect ratio
+
+        print('image shape:', height, width)
+        #frame = cv2.resize(frame, (720, int(720 * height / width))) # Maintain aspect ratio
         
         mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=frame)
 
