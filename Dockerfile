@@ -15,9 +15,7 @@ RUN apt-get update && apt-get install -y libglib2.0-0 libgl1-mesa-glx && rm -rf 
 COPY ./static ./static
 COPY ./templates ./templates
 COPY ./models ./models
-COPY ./apis ./apis
-COPY ./videos ./videos
-COPY ./data ./data
+
 
 # copy changing files 
 COPY ./modules ./modules
@@ -25,6 +23,5 @@ COPY ./main.py ./main.py
 
 #expose the port the app runs on
 EXPOSE 8080
-EXPOSE 443
 # Run the application
 CMD ["fastapi", "run", "main.py", "--port", "8080"]

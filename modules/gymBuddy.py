@@ -22,7 +22,7 @@ class GymBuddy:
         workout_name: str = "Push-ups",
         strictness_crit: str = "loose",
         input_type: str = "Video",
-        model_path: str = "models/pose_landmarker_full.task",
+        model_path: str = "models/pose_landmarker_lite.task",
 
     ):
         # set up the model
