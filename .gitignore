@@ -6,8 +6,8 @@ __pycache__/
 # folders
 videos/
 logs/
-notebooks/
-
+notebook/
+ssl/
 
 
 # C extensions

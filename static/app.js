@@ -7,10 +7,21 @@ const ctx = canvas.getContext('2d');
 const historyDiv = document.getElementById('history');
 const statusEl = document.getElementById('status');
 
+// --- Sound Effects ---
+const repCompleteSound = new Audio('/static/sounds/rep-complete.mp3');
+const victorySound = new Audio('/static/sounds/victory.mp3');
+// Preload sounds for better performance, though browsers might restrict this
+// repCompleteSound.preload = 'auto';
+// victorySound.preload = 'auto';
+
+
 let videoElement = null;
 let mediaStream = null;
 let isCapturing = false;
 let lastAnalysisData = null;
+let previousRepCount = 0; // To track rep increases
+let workoutCompletedSoundPlayed = false; // Flag to ensure victory sound plays only once
+let completedSeries = false;
 
 // Update WebSocket connection to use secure protocol when on HTTPS
 const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
@@ -141,11 +152,11 @@ async function initCamera() {
         
         updateStatus("Camera ready! Configure your workout settings.", "ready");
         
-        startFrameCapture();
+        //startFrameCapture();
         renderLoop(); // Start the rendering loop
 
         // Start capturing frames immediately
-        //startFrameCapture();
+        startFrameCapture();
         return true;
     } catch (error) {
         console.error('Camera error:', error);
@@ -167,20 +178,58 @@ async function initCamera() {
     }
 }
 
+function resizeAndPad(videoElement, targetSize = 256) {
+    const canvas = document.createElement('canvas');
+    canvas.width = targetSize;
+    canvas.height = targetSize;
+    const ctx = canvas.getContext('2d');
+
+    // Fill the canvas with a black background
+    ctx.fillStyle = 'black';
+    ctx.fillRect(0, 0, targetSize, targetSize);
+
+    // Calculate new dimensions while maintaining aspect ratio
+    const videoWidth = videoElement.videoWidth;
+    const videoHeight = videoElement.videoHeight;
+    let newWidth, newHeight, xOffset, yOffset;
+
+    if (videoHeight > videoWidth) {
+        newHeight = targetSize;
+        newWidth = Math.floor(videoWidth * (targetSize / videoHeight));
+        xOffset = Math.floor((targetSize - newWidth) / 2);
+        yOffset = 0;
+    } else {
+        newWidth = targetSize;
+        newHeight = Math.floor(videoHeight * (targetSize / videoWidth));
+        xOffset = 0;
+        yOffset = Math.floor((targetSize - newHeight) / 2);
+    }
+
+    // Draw the resized video frame onto the padded canvas
+    ctx.drawImage(videoElement, xOffset, yOffset, newWidth, newHeight);
+    
+    return canvas;
+}
+
+
 function captureAndSendFrame() {
     if (!videoElement || !isCapturing || ws.readyState !== WebSocket.OPEN) return;
 
-    const tempCanvas = document.createElement('canvas');
+   /* const tempCanvas = document.createElement('canvas');
     tempCanvas.width = videoElement.videoWidth;
     tempCanvas.height = videoElement.videoHeight;
     const tempCtx = tempCanvas.getContext('2d');
-    tempCtx.drawImage(videoElement, 0, 0);
+    tempCtx.drawImage(videoElement, 0, 0);*/
 
-    tempCanvas.toBlob((blob) => {
-        if (blob) {
-            blob.arrayBuffer().then(buffer => ws.send(buffer));
-        }
-    }, 'image/jpeg', 0.8);
+    console.log(`Before resize: ${videoElement.videoWidth}x${videoElement.videoHeight}`);
+    const processedCanvas = resizeAndPad(videoElement, 256);
+    console.log(`After resize: ${processedCanvas.width}x${processedCanvas.height}`);
+    //tempCanvas.toBlob((blob) => {
+    processedCanvas.toBlob((blob) => {
+    if (blob) {
+        blob.arrayBuffer().then(buffer => ws.send(buffer));
+    }
+}, 'image/jpeg', 0.8);
 }
 
 
@@ -208,6 +257,13 @@ function renderLoop() {
         drawInfoText(lastAnalysisData);
         drawAngles(lastAnalysisData);
     }
+    if(completedSeries){
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        if (videoElement) {
+            ctx.drawImage(videoElement, 0, 0, canvas.width, canvas.height);
+        }
+    }
+
 
     // Continue the loop
     requestAnimationFrame(renderLoop);
@@ -218,28 +274,39 @@ ws.onmessage = (event) => {
     if (typeof event.data === "string") {
         const data = JSON.parse(event.data);
         console.log('Received:', data);
+
         if (data.landmarks) {
             lastAnalysisData = data;
-        }else if (data.type === 'data') {
+            const currentReps = lastAnalysisData.rep_count;
+            const goalReps = lastAnalysisData.goal_reps;
+
+            if (currentReps > previousRepCount && currentReps != goalReps && goalReps>0) { // A rep was made
+                    repCompleteSound.play().catch(e => console.error("Error playing rep sound:", e));
+                }
+                previousRepCount = currentReps;
+
+            // Reset flags and counts if workout is reset (e.g., goal_reps becomes 0, or rep_count is reset by server)
+            if (goalReps === 0 || currentReps === 0) {
+                previousRepCount = 0;
+                workoutCompletedSoundPlayed = false; // Reset flag
+            }
+        } else if (data.type === 'data') {
             updateStatus(data.message, data.status);
+            if (data.status === 'completed') {
+                if (!workoutCompletedSoundPlayed) { // Only play if not already played by landmark update
+                    victorySound.play().catch(e => console.error("Error playing victory sound:", e));
+                }
+                previousRepCount = 0; // Reset for next workout
+                workoutCompletedSoundPlayed = false; // Reset flag for the next workout session
+                completedSeries = true; // Mark series as completed
+            }
         } else if (data.type === 'history') {
             updateHistory(data.message);
         } else if (data.type === 'feedback') {
             addFeedbackToHistory(data.message);
         }
-    } /*else {
-        // Display received frame
-        const imageBlob = new Blob([event.data], { type: "image/jpeg" });
-        const imageURL = URL.createObjectURL(imageBlob);
-        const img = new Image();
-        img.onload = () => {
-            canvas.width = img.width;
-            canvas.height = img.height;
-            ctx.drawImage(img, 0, 0);
-            URL.revokeObjectURL(imageURL);
-        };
-        img.src = imageURL;
-    }*/
+        console.log("Updated status:", data.message, "Status:", data.status);
+    }
 };
 
 function updateStatus(message, status) {
@@ -329,6 +396,9 @@ goButton?.addEventListener('click', () => {
     ws.send(JSON.stringify({type:'strictness',value: strictnessSelect.value}));
     //ws.send(JSON.stringify({ type: 'start' }));
     updateStatus("Workout started! Get into position...", "in_progress");
+    previousRepCount = 0; // Reset rep count when starting a new workout
+    workoutCompletedSoundPlayed = false; // Reset flag for new workout
+    completedSeries = false; // Reset completed series flag
 });
 
 
