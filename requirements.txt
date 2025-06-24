@@ -25,9 +25,12 @@ fastapi-cli==0.0.5
 filetype==1.2.0
 flatbuffers==24.3.25
 fonttools==4.54.1
-google-ai-generativelanguage
+google-ai-generativelanguage==0.6.18
 google-api-core==2.25.0
 google-auth==2.40.3
+googleapis-common-protos==1.70.0
+grpcio==1.73.0
+grpcio-status==1.73.0
 h11==0.14.0
 httpcore==1.0.7
 httptools==0.6.4
@@ -60,7 +63,7 @@ matplotlib==3.9.2
 matplotlib-inline==0.1.7
 mccabe==0.7.0
 mdurl==0.1.2
-mediapipe
+mediapipe==0.10.15
 ml_dtypes==0.5.0
 monotonic==1.6
 neo4j==5.28.1
@@ -80,6 +83,7 @@ platformdirs==4.3.6
 pluggy==1.5.0
 prompt_toolkit==3.0.51
 proto-plus==1.26.1
+protobuf==4.25.8
 psutil==7.0.0
 ptyprocess==0.7.0
 pure_eval==0.2.3
@@ -90,6 +94,7 @@ pycparser==2.22
 pydantic==2.9.2
 pydantic_core==2.23.4
 Pygments==2.18.0
+pyinstrument==5.0.2
 pylint==3.3.2
 pyparsing==3.2.0
 pytest==8.3.4
