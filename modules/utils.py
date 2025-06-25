@@ -1,15 +1,11 @@
 import numpy as np
-import math 
-import cv2
 from pydantic import BaseModel
+
 
 class Landmark(BaseModel):
     x: float
     y: float
     visibility: float = 1.0
-    
-    class Config:
-        arbitrary_types_allowed = True
 
 
 def compute_angle(point1: Landmark, point2: Landmark, point3: Landmark) -> float:
@@ -43,17 +39,25 @@ def compute_angle(point1: Landmark, point2: Landmark, point3: Landmark) -> float
 def is_left_side(res: list) -> bool:
     for idx in range(len(res)):
         pose_landmarks = res[idx]
-        left_elbow = Landmark(x=pose_landmarks[13].x, y=pose_landmarks[13].y, visibility=pose_landmarks[13].visibility)
-        right_elbow = Landmark(x=pose_landmarks[14].x, y=pose_landmarks[14].y, visibility=pose_landmarks[14].visibility)
+        left_elbow = Landmark(
+            x=pose_landmarks[13].x,
+            y=pose_landmarks[13].y,
+            visibility=pose_landmarks[13].visibility,
+        )
+        right_elbow = Landmark(
+            x=pose_landmarks[14].x,
+            y=pose_landmarks[14].y,
+            visibility=pose_landmarks[14].visibility,
+        )
         if left_elbow.visibility > right_elbow.visibility:
             print("left", left_elbow)
             print("right", right_elbow)
             return True
-        else:
-            print("left", left_elbow)
-            print("right", right_elbow)
-            return False
+
+        print("left", left_elbow)
+        print("right", right_elbow)
     return False
+
 
 def extend_row(row: dict) -> list:
     """
@@ -65,5 +69,5 @@ def extend_row(row: dict) -> list:
     """
     extended_row = []
     for landmark in row:
-        extended_row.extend([landmark['x'], landmark['y']])
+        extended_row.extend([landmark["x"], landmark["y"]])
     return extended_row

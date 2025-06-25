@@ -13,9 +13,8 @@ format: ## Format code with black.
 
 
 lint: ## Lint code with pylint.
-	pylint --disable=R,C,E1101,E0611 \
-	 --extension-pkg-whitelist=mediapipe \
-	 *.py modules/**/*.py
+	pylint --disable=C,W0718,R0914,R1702,R0912,R0915,R0902,R0801,E1101,W0108 \
+	 *.py modules/**/*.py modules/*.py
 
 llm: ## call to ollama to pull the model mentioned by $(MODEL)
 	@echo "starting ollama..."

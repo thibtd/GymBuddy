@@ -20,3 +20,5 @@ langchain-google-genai
 # Code Quality and Testing
 pylint==3.3.6
 pytest==8.3.4
+pytest-coverage
+black
