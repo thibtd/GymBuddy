@@ -9,7 +9,6 @@ from modules.workouts.squats import Squats
 from typing import Dict, Any
 import json 
 from modules.workouts.workoutParent import Workout 
-import pyinstrument
 
 
 PoseLandmarkerResult = mp.tasks.vision.PoseLandmarkerResult

@@ -11,11 +11,6 @@ services:
       - PYTHONUNBUFFERED=${PYTHONUNBUFFERED}
     networks:
       - gymbuddy-network
-    deploy:
-      resources:
-        limits:
-          cpus: '0.1' 
-          memory: 512M 
 
  
 networks:

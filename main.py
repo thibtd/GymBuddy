@@ -12,8 +12,6 @@ import os
 from typing import Dict, Any
 from modules.db_setup import connect_in_memory_db, close_db_connection, save_data_to_db
 from modules.feedbackAgent import FeedbackAgent
-from pyinstrument import Profiler
-import psutil
 import time 
 
 
@@ -44,7 +42,6 @@ app.mount("/static", StaticFiles(directory=os.path.join(BASE_DIR, "static")), na
 # Set up Jinja2 templates
 templates = Jinja2Templates(directory=os.path.join(BASE_DIR, "templates"))
 
-process = psutil.Process(os.getpid())
 
 @app.get("/",response_class=HTMLResponse)
 async def get(request: Request):
@@ -67,45 +64,18 @@ async def camera_feed(websocket: WebSocket):
     # Initialize GymBuddy
     buddy:GymBuddy = GymBuddy()
     feedback_agent:FeedbackAgent = FeedbackAgent(db_conn=db_conn)
-    profiler = Profiler()
-    TEST_DURATION_SECONDS = 60
-    session_start_time = time.time()
-    memory_readings_mb = []
     
     
     
     try:
-        profiler.start()
+        
         while True:
             try:
                 
                 # Wait for message
                 
                 message = await asyncio.wait_for(websocket.receive(), timeout=0.1)
-                if time.time() - session_start_time > TEST_DURATION_SECONDS:
-                    profiler.stop()
-                    print(f"--- {TEST_DURATION_SECONDS} second time limit reached. Closing connection. ---")
-                    print("\n" + "="*50)
-                    print("    FINAL PROFILING SUMMARY (ENTIRE SESSION)")
-                    print("="*50)
-
-                    # 1. Performance Summary from Pyinstrument
-                    print("\n--- PYINSTRUMENT PERFORMANCE REPORT ---")
-                    profiler.print(color=True)
-
-                    # 2. Memory Summary from psutil data
-                    if memory_readings_mb:
-                        print("\n--- MEMORY USAGE REPORT ---")
-                        print(f"  - Initial Memory Usage: {memory_readings_mb[0]:.2f} MB")
-                        print(f"  - Peak Memory Usage:    {max(memory_readings_mb):.2f} MB")
-                        print(f"  - Average Memory Usage: {(sum(memory_readings_mb) / len(memory_readings_mb)):.2f} MB")
-                        print(f"  - Total Memory Usage: {sum(memory_readings_mb)} MB")
-                    
-                    print("\n" + "="*50)
-                    
-                    await websocket.close()
-
-                    break 
+            
                 if 'text' in message:
                     
                     data = json.loads(message['text'])
@@ -215,7 +185,7 @@ async def camera_feed(websocket: WebSocket):
                                 }))
                             # Send analysis data for rendering
                             await websocket.send_text(json.dumps(analysis_data))   
-                            memory_readings_mb.append(process.memory_info().rss / (1024 * 1024))
+                        
                             
                             
             except asyncio.TimeoutError:

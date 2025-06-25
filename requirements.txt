@@ -17,15 +17,6 @@ mediapipe
 langchain==0.3.25
 langchain-google-genai
 
-# Profiling and Debugging Tools
-pyinstrument==5.0.2
-psutil==7.0.0
-
-# Jupyter Notebook and Data Visualization
-ipykernel==6.29.5
-matplotlib==3.9.2
-seaborn==0.13.2
-
 # Code Quality and Testing
 pylint==3.3.6
 pytest==8.3.4
