@@ -1,91 +1,94 @@
-# GymBuddy - Your AI-Powered Personal Trainer
+GymBuddy - Your AI-Powered Workout Companion
+GymBuddy is an intelligent, real-time personal trainer that uses your webcam to help you achieve perfect form, count your reps, and provide meaningful feedback on your workouts.
 
-Welcome to **GymBuddy**, the revolutionary AI-powered fitness app that brings the expertise of a personal trainer right to your home! GymBuddy uses advanced computer vision technology to track your workouts in real-time, provide instant feedback on your form, and help you achieve your fitness goals faster and safer.
+This project leverages the power of computer vision and large language models to create an accessible and effective fitness experience. Whether you're a beginner learning the basics or an experienced athlete looking to perfect your form, GymBuddy is here to guide and motivate you.
 
-## 🚀 Features
+✨ Core Features
+Real-Time Exercise Tracking: Utilizes Google's MediaPipe to perform real-time pose estimation directly in your browser, tracking 33 key body landmarks.
 
-- **Real-Time Pose Estimation**: Utilizing the power of MediaPipe, GymBuddy detects and analyzes your movements to ensure you're performing exercises correctly.
-- **Instant Form Feedback**: Receive immediate suggestions on how to correct your posture and technique to prevent injuries and maximize effectiveness.
-- **Automatic Rep Counting**: Focus on your workout while GymBuddy counts your reps for you.
-- **Interactive Web Interface**: A sleek and user-friendly interface to track your progress and view your workout history.
-- **Customizable Workouts**: Choose from different exercises like push-ups, abs, and squats, and set your desired number of reps.
+Automatic Rep Counting: No more losing count! GymBuddy's algorithms detect full repetitions for supported exercises, currently including:
 
-## 🛠 Tech Stack
+Push-ups
 
-- **Python**: The core programming language driving the application.
-- **FastAPI**: A modern, fast web framework for building APIs with Python.
-- **OpenCV**: Open Source Computer Vision Library for real-time computer vision.
-- **MediaPipe**: A cross-platform framework for building multimodal applied machine learning pipelines.
-- **NumPy**: Essential package for scientific computing with Python.
-- **WebSockets**: For real-time communication between the server and client.
-- **HTML/CSS/JavaScript**: Front-end technologies for the interactive web interface.
+Squats
 
-## 📖 How It Works
+AI-Powered Form Correction: The feedbackAgent analyzes your movements and provides instant, actionable advice to help you improve your form and prevent injuries.
 
-GymBuddy captures video input, analyzes your movements using MediaPipe's pose estimation, and processes the data to provide feedback and count repetitions. The application runs a FastAPI server that handles WebSocket connections to stream video data and interact with the client-side web interface.
+Scientifically-Grounded Feedback (In Progress): Our goal is to move beyond generic advice. We are actively developing a Knowledge Graph (KG) based on exercise science and biomechanics. By implementing a GraphRAG pipeline, the AI's feedback will be grounded in this structured, scientific knowledge, providing you with truly expert-level guidance.
 
-## 💡 Why GymBuddy?
+🚀 Tech Stack
+Backend: FastAPI, Python 3
 
-- **Innovative Technology**: Combines state-of-the-art computer vision and machine learning technologies.
-- **Enhances Workouts**: Helps you maintain proper form, which is crucial for effectiveness and injury prevention.
-- **Convenient and Accessible**: No need for expensive equipment or personal trainers; GymBuddy is accessible from your own device.
-- **Motivational**: Keep track of your progress and stay motivated by seeing your improvements over time.
+Real-time Communication: WebSockets
 
-## 🔧 Getting Started
+Machine Learning / CV: Google MediaPipe
 
-### Prerequisites
+Data Validation: Pydantic
 
-- Python 3.7 or higher installed on your system.
-- `pip` for managing Python packages.
-- A webcam or video source for capturing your workout.
+Deployment: Docker, Nginx
 
-### Installation
+Frontend: Vanilla JavaScript, HTML5, CSS
 
-1. **Clone the Repository**
+🛠️ Getting Started
+You can get a local instance of GymBuddy up and running in minutes using either Docker (recommended) or by setting up a local Python environment.
 
-   ```bash
-   git clone https://github.com/yourusername/gymbuddy.git
-   cd gymbuddy
-   ```
+Option 1: Running with Docker (Recommended)
 
-2. **Install Dependencies**
+This is the easiest and most reliable way to run the project.
 
-   Use the provided 
+Clone the repository:
 
-makefile
+git clone [https://github.com/your-username/GymBuddy.git](https://github.com/your-username/GymBuddy.git)
+cd GymBuddy
 
- to install the required packages:
+Run with Docker Compose:
 
-   ```bash
-   make install
-   ```
+docker-compose up --build
 
-   Alternatively, install manually:
+Open your browser and navigate to http://localhost:8080.
 
-   ```bash
-   pip install --upgrade pip
-   pip install -r requirements.txt
-   ```
+Option 2: Running Locally with Python
 
-### Usage
+Clone the repository:
 
-1. **Run the Application**
+git clone [https://github.com/your-username/GymBuddy.git](https://github.com/your-username/GymBuddy.git)
+cd GymBuddy
 
-   ```bash
-   uvicorn main:app --reload
-   ```
+Create and activate a virtual environment:
 
-2. **Access the Web Interface**
+python3 -m venv venv
+source venv/bin/activate
 
-   Open your web browser and navigate to `http://127.0.0.1:8000`.
+Install the dependencies:
 
-3. **Start Your Workout**
+pip install -r requirements.txt
 
-   - Select your desired workout (e.g., push-ups, abs, squats).
-   - Enter the number of reps.
-   - Click the "Go" button to start.
+Run the application using the Makefile:
 
-4. **View Feedback**
+make run
 
-   - Watch your live video stream with real-time annotations.
-   - Receive feedback on your form and keep track of your reps.
+Open your browser and navigate to http://localhost:8000.
+
+✅ Running Tests
+We are committed to maintaining a high-quality, reliable codebase. We use pytest for testing. To run the complete test suite:
+
+make test
+
+🗺️ Roadmap
+GymBuddy is an actively developing project. Here are some of the exciting features on our roadmap:
+
+[ ] Knowledge Graph & GraphRAG Integration: Finalize and implement the KG to provide elite, scientifically-backed feedback.
+
+[ ] Expand Exercise Library: Add more complex exercises like lunges, pull-ups, and planks.
+
+[ ] User Profiles & Progress Tracking: Introduce user accounts to save workout history, track personal bests, and visualize progress over time.
+
+[ ] Advanced Form Analysis: Provide more detailed biomechanical feedback, such as joint-specific angle analysis and stability assessments.
+
+[ ] Customizable Workouts: Allow users to create and save their own workout routines.
+
+🤝 Contributing
+Contributions are welcome! Whether you're interested in adding new exercises, improving the AI feedback, or enhancing the frontend, we'd love to have your help. Please feel free to open an issue to discuss your ideas or submit a pull request.
+
+📄 License
+This project is licensed under the MIT License. See the LICENSE file for details.
