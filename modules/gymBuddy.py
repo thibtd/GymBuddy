@@ -158,7 +158,7 @@ class GymBuddy:
 
             # Determine side on the first frame
             if self.frame_count == 0:
-                self.left_side = is_left_side(res)
+                self.left_side = is_left_side(res[0])
                 print(f"left side: {self.left_side}")
                 # set current workout points to left side
                 self.current_workout.left_side = self.left_side
@@ -225,6 +225,7 @@ class GymBuddy:
                 "landmarks": analysis_data["landmarks"],
             }
             self.raw_landmarks_buffer.append(raw_landmarks)
+            print('landmarks:', raw_landmarks['landmarks'])
 
             # increment frame count
             self.frame_count += 1
