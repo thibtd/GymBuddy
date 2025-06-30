@@ -1,3 +1,4 @@
+[![test-lint-format](https://github.com/thibtd/GymBuddy/actions/workflows/test_lint.yml/badge.svg)](https://github.com/thibtd/GymBuddy/actions/workflows/test_lint.yml)
 # GymBuddy - Your AI-Powered Workout Companion
 
 **GymBuddy** is an intelligent, real-time personal trainer that uses your webcam to help you achieve perfect form, count your **reps, and provide meaningful feedback on your workouts.**
