@@ -1,0 +1,31 @@
+name: test-lint-format
+
+on:
+  push:
+    branches: [ "main" ]
+    
+jobs:
+  build:
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+    - name: Set up Python
+      # This is the version of the action for setting up Python, not the Python version.
+      uses: actions/setup-python@v5
+      with:
+        # Semantic version range syntax or exact version of a Python version
+        python-version: '3.12'
+  
+    - name: Install dependencies
+      run: make install 
+      
+    - name: test with pytest
+      run: make test
+    
+    - name: lint with pylint
+      run: make lint
+    
+    - name: format with black
+      run: make format
