@@ -79,7 +79,7 @@ jobs:
       
       - name: 'setup gcloud docker'
         run: |-
-          gcloud auth configure-docker "${env.REGION}"-docker.pkg.dev
+          gcloud auth configure-docker europe-west1-docker.pkg.dev
           
       - name: 'Build and Push Container'
         run: |-
