@@ -30,15 +30,18 @@
 name: 'Build and Deploy to Cloud Run'
 
 on:
-  workflow_run:
-      workflows: ["test-lint-format"] 
-      types:
-        - completed 
+  push:
+    branches: 
+      - main
+ # workflow_run:
+ #     workflows: ["test-lint-format"] 
+ #     types:
+ #       - completed 
 
 env:
   PROJECT_ID: 'gymbuddy-464513' 
   REGION: 'europe-west1' 
-  SERVICE: 'gymbuddy-2'
+  SERVICE: 'gymbuddy-container'
   WORKLOAD_IDENTITY_PROVIDER: 'projects/799858040575/locations/global/workloadIdentityPools/github-actions-cloud-run/providers/github' 
 
 jobs:
