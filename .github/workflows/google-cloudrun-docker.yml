@@ -79,11 +79,11 @@ jobs:
       
       - name: 'setup gcloud docker'
         run: |-
-          gcloud auth configure-docker europe-west1-docker.pkg.dev
+          gcloud auth configure-docker "${env.REGION}"-docker.pkg.dev
           
       - name: 'Build and Push Container'
         run: |-
-          DOCKER_TAG="${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.SERVICE }}:${{ github.sha }}"
+          DOCKER_TAG="${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.CONTAINER }}/${{ env.SERVICE }}:${{ github.sha }}"
           docker build --tag "${DOCKER_TAG}" .
           docker push "${DOCKER_TAG}"
       - name: 'Deploy to Cloud Run'
