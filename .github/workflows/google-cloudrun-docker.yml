@@ -40,7 +40,8 @@ on:
 
 env:
   PROJECT_ID: 'gymbuddy-464513' 
-  REGION: 'europe-west1' 
+  REGION: 'europe-west1'
+  CONTAINER: 'gymbuddy-container'
   SERVICE: 'gymbuddy'
   WORKLOAD_IDENTITY_PROVIDER: 'projects/799858040575/locations/global/workloadIdentityPools/github-actions-cloud-run/providers/github' 
 
@@ -78,7 +79,7 @@ jobs:
 
       - name: 'Build and Push Container'
         run: |-
-          DOCKER_TAG="$${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.SERVICE }}:${{ github.sha }}"
+          DOCKER_TAG="$${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{env.CONTAINER$}}/{{ env.SERVICE }}:${{ github.sha }}"
           docker build --tag "${DOCKER_TAG}" .
           docker push "${DOCKER_TAG}"
       - name: 'Deploy to Cloud Run'
