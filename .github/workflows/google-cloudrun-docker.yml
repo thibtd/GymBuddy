@@ -41,7 +41,7 @@ on:
 env:
   PROJECT_ID: 'gymbuddy-464513' 
   REGION: 'europe-west1' 
-  SERVICE: 'gymbuddy-container'
+  SERVICE: 'gymbuddy'
   WORKLOAD_IDENTITY_PROVIDER: 'projects/799858040575/locations/global/workloadIdentityPools/github-actions-cloud-run/providers/github' 
 
 jobs:
