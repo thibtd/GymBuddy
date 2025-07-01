@@ -39,7 +39,7 @@ env:
   PROJECT_ID: 'gymbuddy-464513' 
   REGION: 'europe-west1' 
   SERVICE: 'gymbuddy-2'
-  #WORKLOAD_IDENTITY_PROVIDER: 'projects/123456789/locations/global/workloadIdentityPools/my-pool/providers/my-provider' # TODO: update to your workload identity provider
+  WORKLOAD_IDENTITY_PROVIDER: 'projects/799858040575/locations/global/workloadIdentityPools/github-actions-cloud-run/providers/github' 
 
 jobs:
   deploy:
@@ -60,7 +60,8 @@ jobs:
       - id: 'auth'
         name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v2.1.10
-        
+        with:
+          workload_identity_provider: '${{ env.WORKLOAD_IDENTITY_PROVIDER }}'
 
       # BEGIN - Docker auth and build
       #
