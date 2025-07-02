@@ -44,8 +44,7 @@ env:
   CONTAINER: 'gymbuddy-container'
   SERVICE_CONTAINER: 'gymbuddy'
   SERVICE_RUN: 'gymbuddy-2'
-  WORKLOAD_IDENTITY_PROVIDER: 'projects/799858040575/locations/global/workloadIdentityPools/github-actions-cloud-run/providers/github' 
-
+  WORKLOAD_IDENTITY_PROVIDER: '${ secrets.WORKLOAD_IDENTITY_PROVIDER }'
 
 jobs:
   deploy:
@@ -68,7 +67,7 @@ jobs:
         uses: 'google-github-actions/auth@v2' # google-github-actions/auth@v2
         with:
           workload_identity_provider: '${{ env.WORKLOAD_IDENTITY_PROVIDER }}'
-          service_account: '799858040575-compute@developer.gserviceaccount.com'
+          service_account: '${{ secrets.service_account }}'
 
       # BEGIN - Docker auth and build
       #
