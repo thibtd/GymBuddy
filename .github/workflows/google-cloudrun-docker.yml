@@ -44,7 +44,8 @@ env:
   CONTAINER: 'gymbuddy-container'
   SERVICE_CONTAINER: 'gymbuddy'
   SERVICE_RUN: 'gymbuddy-2'
-  WORKLOAD_IDENTITY_PROVIDER: '${ secrets.WORKLOAD_IDENTITY_PROVIDER }'
+  WORKLOAD_IDENTITY_PROVIDER: '${{ secrets.WORKLOAD_IDENTITY_PROVIDER }}'
+
 
 jobs:
   deploy:
