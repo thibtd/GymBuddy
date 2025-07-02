@@ -45,17 +45,14 @@ env:
   SERVICE: 'gymbuddy'
   WORKLOAD_IDENTITY_PROVIDER: 'projects/799858040575/locations/global/workloadIdentityPools/github-actions-cloud-run/providers/github' 
 
-permissions:
-  id-token: write 
-  contents: read 
 
 jobs:
   deploy:
     runs-on: 'ubuntu-latest'
 
     permissions:
-      contents: 'read'
-      id-token: 'write'
+      contents: read
+      id-token: write
 
     steps:
       - name: 'Checkout'
