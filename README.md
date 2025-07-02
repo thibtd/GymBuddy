@@ -1,4 +1,6 @@
-[![test-lint-format](https://github.com/thibtd/GymBuddy/actions/workflows/test_lint.yml/badge.svg)](https://github.com/thibtd/GymBuddy/actions/workflows/test_lint.yml)
+[![test-lint-format](https://github.com/thibtd/GymBuddy/actions/workflows/test_lint.yml/badge.svg)](https://github.com/thibtd/GymBuddy/actions/workflows/test_lint.yml) [![Build and Deploy to Cloud Run](https://github.com/thibtd/GymBuddy/actions/workflows/google-cloudrun-docker.yml/badge.svg)](https://github.com/thibtd/GymBuddy/actions/workflows/google-cloudrun-docker.yml) 
+
+[![Launch App](https://img.shields.io/badge/Launch%20App-%F0%9F%8F%8B-blue)](https://gymbuddy-2-799858040575.europe-west1.run.app)
 # GymBuddy - Your AI-Powered Workout Companion
 
 **GymBuddy** is an intelligent, real-time personal trainer that uses your webcam to help you achieve perfect form, count your **reps, and provide meaningful feedback on your workouts.**
