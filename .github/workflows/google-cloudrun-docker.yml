@@ -42,7 +42,8 @@ env:
   PROJECT_ID: 'gymbuddy-464513' 
   REGION: 'europe-west1'
   CONTAINER: 'gymbuddy-container'
-  SERVICE: 'gymbuddy'
+  SERVICE_CONTAINER: 'gymbuddy'
+  SERVICE_RUN: 'gymbuddy-2'
   WORKLOAD_IDENTITY_PROVIDER: 'projects/799858040575/locations/global/workloadIdentityPools/github-actions-cloud-run/providers/github' 
 
 
@@ -94,7 +95,7 @@ jobs:
 
         uses: 'google-github-actions/deploy-cloudrun@33553064113a37d688aa6937bacbdc481580be17' # google-github-actions/deploy-cloudrun@v2
         with:
-          service: '${{ env.SERVICE }}'
+          service: '${{ env.SERVICE_RUN }}'
           region: '${{ env.REGION }}'
           # NOTE: If using a pre-built image, update the image name below:
 
