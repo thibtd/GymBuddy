@@ -12,7 +12,7 @@ def connect_in_memory_db() -> duckdb.DuckDBPyConnection:
         duckdb.DuckDBPyConnection: A connection object to the in-memory database.
     """
     conn = duckdb.connect(database=":memory:")
-    # conn = duckdb.connect(database=':memory', read_only=False)
+    #conn = duckdb.connect(database='data/db_test.db', read_only=False)
     setup_database(conn)
     return conn
 
@@ -36,6 +36,7 @@ def setup_database(conn: duckdb.DuckDBPyConnection) -> None:
             workout_name VARCHAR(128) NOT NULL,
             timestamp_start TIMESTAMP not null, 
             rep_goal INTEGER not null,
+            series_number INTEGER,
             strictness_crit VARCHAR(16) not null,
             strictness_definition DOUBLE not null,
             left_side BOOLEAN not null,
@@ -54,7 +55,6 @@ def setup_database(conn: duckdb.DuckDBPyConnection) -> None:
             workout_id INTEGER not null,
             frame INTEGER not null,
             timestamp TIMESTAMP not null,
-            series_number INTEGER,
             rep_count INTEGER not null,
             down BOOLEAN not null,
             form_issues VARCHAR not null,
@@ -82,13 +82,14 @@ def write_workout_metadata(conn: duckdb.DuckDBPyConnection, metadata: dict) -> i
     try:
         conn.sql(
             """
-            INSERT INTO workout (workout_name, timestamp_start,rep_goal,
+            INSERT INTO workout (workout_name, timestamp_start,rep_goal,series_number,
             strictness_crit,strictness_definition, left_side,ldmrks_of_interest)
-            VALUES (?,?,?,?,?,?,MAP(?,?)) """,
+            VALUES (?,?,?,?,?,?,?,MAP(?,?)) """,
             params=[
                 metadata["workout_name"],
                 metadata["timestamp_start"],
                 metadata["rep_goal"],
+                metadata["series_number"],
                 metadata["strictness_crit"],
                 metadata["strictness_definition"],
                 metadata["left_side"],
@@ -103,7 +104,7 @@ def write_workout_metadata(conn: duckdb.DuckDBPyConnection, metadata: dict) -> i
         print("No workout entries found in the database.")
         return 0
     except Exception as e:
-        print(f"Error inserting new workout: {e}")
+        print(f"Error inserting new workout metadata: {e}")
         return 0
 
 
@@ -128,7 +129,7 @@ def write_workout_analysis(
     try:
         conn.sql("INSERT INTO workout_analysis BY NAME SELECT * FROM data_to_insert")
     except Exception as e:
-        print(f"Error inserting new workout: {e}")
+        print(f"Error inserting new workout analysis: {e}")
 
 
 def write_raw_landmarks(

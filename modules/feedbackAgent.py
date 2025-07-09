@@ -24,11 +24,15 @@ class FeedbackAgent:
         self.metadata: pd.Series = pd.Series()
         self.workout_analysis: dict = {}
         self.landmarks: dict = {}
+        self.previous_rolling_summary:str = "No previous sets in this session."
 
         # Initialize the LLM model
         load_dotenv()
         google_key = os.environ.get("GOOGLE_API_KEY")
         self.llm = ChatGoogleGenerativeAI(model=self.model, google_api_key=google_key)
+
+    def update_rolling_summary(self,summary:str)->None:
+        self.previous_rolling_summary = summary
 
     def get_id_frame(self) -> dict[str, int] | None:
         try:
@@ -197,28 +201,32 @@ class FeedbackAgent:
         return output
 
     def create_prompt(self):
-        response_schemas = [
-            ResponseSchema(
+
+        encouragement:ResponseSchema = ResponseSchema(
                 name="encouragement",
                 description="A brief, encouraging opening statement congratulating the user on their effort.",
-            ),
-            ResponseSchema(
+            )   
+        positive_point:ResponseSchema = ResponseSchema(
                 name="positive_point",
                 description="A positive one sentence note highlighting something positif in the workout. ",
-            ),
-            ResponseSchema(
+            )
+        main_feedback:ResponseSchema = ResponseSchema(
                 name="main_feedback",
                 description="The primary piece of feedback, focusing on the most critical form issue. Explain the issue, why it's important, and how to fix it.",
-            ),
-            ResponseSchema(
+            )
+        second_feedback:ResponseSchema = ResponseSchema(
                 name="secondary_feedback",
                 description="Feedback on any other significant form issues or comments on pacing and consistency.",
-            ),
-            ResponseSchema(
+            )
+        summ:ResponseSchema = ResponseSchema(
                 name="summary",
                 description="A concluding summary and a key takeaway for the user to focus on in their next session.",
-            ),
-        ]
+            )
+        rolling_summary:ResponseSchema = ResponseSchema(
+                name='Rolling_Summary',
+                description="a summary of the key metadata (number of reps, time per rep, total time, number of series so far,...) events, form issues, and trends observed across all sets completed so far in this session.."
+            )
+        response_schemas = [encouragement,positive_point,main_feedback,second_feedback,summ,rolling_summary]
 
         output_parser = StructuredOutputParser.from_response_schemas(response_schemas)
         format_instructions = output_parser.get_format_instructions()
@@ -226,8 +234,9 @@ class FeedbackAgent:
         system_prompt = """
         You are an expert, data-driven fitness coach. Your tone should be encouraging, clear, and direct. Make sure anyone can understand you, avoid using technical terms.
         You are analyzing a user's workout based on the data provided in the user message.
-        The user's goal was to perform {rep_goal} {workout_name}.
-        The strictness level for form analysis was set to '{strictness_crit}', with an allowed deviation of {{strictness_definition}} degrees.
+        The user's goal was to perform {rep_goal} {workout_name}. 
+        This is the user's set number {series_number} so far for this workout session. 
+        The strictness level for form analysis was set to '{strictness_crit}', with an allowed deviation of {strictness_definition} degrees.
 
         To ensure a consistent and parsable output, please structure your response as a JSON object with the following format:
         {format_instructions}
@@ -236,10 +245,14 @@ class FeedbackAgent:
         user_prompt = """
         Here is the data from the user's workout session:
 
-        [WORKOUT SUMMARY]
+        [PREVIOUS SETS SUMMARY]
+        {rolling_summary}
+
+        [CURRENT SET DATA | Set Number: {series_number}]
         - Total Repetitions Performed: {total_repetitions}
         - Total Workout Duration: {duration} seconds
         - Average Time Per Repetition: {average_time_repetitions} seconds
+    
 
         [FORM ANALYSIS]
         - Form Issues Encountered: {form_issues}
@@ -287,8 +300,9 @@ class FeedbackAgent:
         self.metadata = self.extract_metadata()
         self.workout_analysis = self.extract_analysis()
 
-        prompt_template, output_parser, format_instructions = self.create_prompt()
 
+        prompt_template, output_parser, format_instructions = self.create_prompt()
+        print(prompt_template)
         chain = prompt_template | self.llm | output_parser
 
         # Format the extracted data for the prompt
@@ -305,7 +319,7 @@ class FeedbackAgent:
                 for rep in self.workout_analysis["worst_reps"]
             ]
         )
-
+        print(f"rolling summary to be used: {self.previous_rolling_summary}")
         # Invoke the chain with the necessary data
         feedback = chain.invoke(
             {
@@ -315,6 +329,7 @@ class FeedbackAgent:
                 "strictness_definition": self.metadata.get(
                     "strictness_definition", "N/A"
                 ),
+                "series_number":self.metadata.get("series_number",'N/A"'),
                 "total_repetitions": self.workout_analysis.get("total_repetitions", 0),
                 "duration": self.metadata.get("duration", 0),
                 "average_time_repetitions": self.workout_analysis.get(
@@ -326,10 +341,13 @@ class FeedbackAgent:
                     "angles_desc_stats", pd.DataFrame()
                 ).to_string(),
                 "format_instructions": format_instructions,
+                "rolling_summary":self.previous_rolling_summary
             }
         )
         formatted_feedback = self.format_feedback(feedback=feedback)
         feedback["formatted_feedback"] = formatted_feedback
+        self.update_rolling_summary(summary = feedback["Rolling_Summary"])
+        print(f"new rolling summary: {self.previous_rolling_summary}")
         return feedback
 
 
@@ -338,21 +356,25 @@ if __name__ == "__main__":
     load_dotenv()
 
     # Establish database connection
-    conn = duckdb.connect("data/workout_db.db")
+    conn = duckdb.connect("data/db_test.db")
 
     # Initialize the FeedbackAgent
     feedback_agent = FeedbackAgent(conn)
-
+    i = 0 
+   
     try:
-        # Generate feedback
-        fb = feedback_agent.agent_pipeline()
+         while i<2:
+            # Generate feedback
+            fb = feedback_agent.agent_pipeline()
+            
 
-        # Pretty print the structured feedback
-        if fb:
-            print(json.dumps(fb, indent=4))
+            # Pretty print the structured feedback
+            if fb:
+                print(json.dumps(fb, indent=4))
 
-        else:
-            print("No feedback was generated.")
+            else:
+                print("No feedback was generated.")
+            i+=1
 
     except Exception as e:
         print(f"Error generating feedback: {e}")
