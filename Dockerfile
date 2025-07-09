@@ -17,11 +17,12 @@ COPY ./templates ./templates
 COPY ./models ./models
 
 
+
 # copy changing files 
 COPY ./modules ./modules
 COPY ./main.py ./main.py
 
 #expose the port the app runs on
 EXPOSE 8080
-# Run the application
+# Run the #application
 CMD ["fastapi", "run", "main.py", "--port", "8080"]

@@ -10,6 +10,8 @@ logs/
 notebook/
 ssl/
 
+#data files
+*.db
 
 # C extensions
 *.so

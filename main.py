@@ -60,6 +60,7 @@ async def camera_feed(websocket: WebSocket):
     start_detection: bool = False
     wo_names: list = []
     wo_reps: list = []
+    series_number:int=1
     last_history_sent: str = ""
 
     # Initialize in-memory DuckDB database
@@ -109,6 +110,7 @@ async def camera_feed(websocket: WebSocket):
                         strictness = data.get("value", "strict")
                         buddy.set_strictness(strictness)
                     if data.get("type") == "start":
+                        buddy.set_series_number(series_number)
                         start_detection = True
                         buddy.count_rep = 0
                         print("Starting detection!")
@@ -173,6 +175,7 @@ async def camera_feed(websocket: WebSocket):
                                 )
                                 wo_names.append(buddy.workout_name)
                                 wo_reps.append(buddy.count_rep)
+                                series_number+=1
                             else:
                                 print("Failed to save data to database.")
                                 await websocket.send_text(

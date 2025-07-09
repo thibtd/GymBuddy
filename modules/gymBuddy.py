@@ -35,6 +35,7 @@ class GymBuddy:
         self.workout_name: str = workout_name.lower()
         self.goal_reps: int = 0
         self.strictness: str = strictness_crit.lower()
+        self.series_number: int = 0
 
         # set up the workout counter
         self.left_side: bool = False
@@ -73,6 +74,9 @@ class GymBuddy:
 
     def set_strictness(self, strictness: str) -> None:
         self.strictness = strictness.lower()
+
+    def set_series_number(self,series_number:int)->None:
+        self.series_number = series_number
 
     def create_model(self):
         BaseOptions = mp.tasks.BaseOptions
@@ -170,16 +174,18 @@ class GymBuddy:
                 print(f"landmarks of interest: {ldmrks_of_interest}")
                 ldmrks_keys = list(ldmrks_of_interest.keys())
                 ldmrks_values = list(ldmrks_of_interest.values())
+                print(f"series_number:{self.series_number}")
                 # save the workout data to the buffer
                 self.workout_db_buffer = {
                     "workout_name": self.workout_name,
                     "timestamp_start": self.time,
                     "rep_goal": self.goal_reps,
+                    "series_number":self.series_number,
                     "strictness_crit": self.strictness,
                     "strictness_definition": self.current_workout.get_strictness_deviation(),
                     "left_side": self.left_side,
                     "ldmrks_keys": ldmrks_keys,
-                    "ldmrks_values": ldmrks_values,
+                    "ldmrks_values": ldmrks_values
                 }
 
             # Count reps
@@ -225,7 +231,6 @@ class GymBuddy:
                 "landmarks": analysis_data["landmarks"],
             }
             self.raw_landmarks_buffer.append(raw_landmarks)
-            print('landmarks:', raw_landmarks['landmarks'])
 
             # increment frame count
             self.frame_count += 1
