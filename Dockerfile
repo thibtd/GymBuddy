@@ -9,7 +9,7 @@ COPY ./requirements.txt ./requirements.txt
 RUN pip install --no-cache-dir --upgrade -r /code/requirements.txt
 
 # opencv 
-RUN apt-get update && apt-get install -y libglib2.0-0 libgl1-mesa-glx && rm -rf /var/lib/apt/lists/*
+RUN rm -rf /var/lib/apt/lists/* && apt-get update && apt-get install -y --no-install-recommends libgl1 libglx-mesa0 libglib2.0-0  && rm -rf /var/lib/apt/lists/*
 
 # Copy the 'static' folders and files
 COPY ./static ./static
