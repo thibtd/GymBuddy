@@ -12,7 +12,6 @@ def connect_in_memory_db() -> duckdb.DuckDBPyConnection:
         duckdb.DuckDBPyConnection: A connection object to the in-memory database.
     """
     conn = duckdb.connect(database=":memory:")
-    #conn = duckdb.connect(database='data/db_test.db', read_only=False)
     setup_database(conn)
     return conn
 
